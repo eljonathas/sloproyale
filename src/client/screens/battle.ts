@@ -15,7 +15,7 @@ import {
   type SitePoint,
   type SiteState,
 } from "../battle/siteBanners.js";
-import { BuildProgress, PlayPreview } from "../rules.js";
+import { BuildProgress, DeliveryValue, PlayPreview } from "../rules.js";
 import { COLORS } from "../theme.js";
 
 /** Uma carta sendo arrastada até uma frente. */
@@ -92,7 +92,7 @@ export class BattleScreen implements Screen {
   aim(): void {
     this.aimed = null;
     this.legality = null;
-    const { state, session, controls, viewport } = this.app;
+    const { state, session, controls } = this.app;
     if (!state || !this.selection) return;
     const team = session.team;
     if (!team) return;
@@ -106,23 +106,56 @@ export class BattleScreen implements Screen {
     );
 
     if (this.drag?.active) {
-      let best: number | null = null;
-      let near = viewport.mobile ? 96 : 140;
-      for (const point of this.points()) {
-        const distance = Math.hypot(
-          this.app.pointer.x - point.x,
-          this.app.pointer.y - point.y,
-        );
-        if (distance < near) {
-          near = distance;
-          best = point.id;
-        }
-      }
-      this.aimed = best;
+      this.aimed = this.dropTarget(this.app.pointer);
       return;
     }
     if (controls.hover.startsWith("site-"))
       this.aimed = Number(controls.hover.slice(5));
+  }
+
+  /** O destaque e o drop usam a mesma área ao redor da obra. */
+  private dropTarget(pointer: { x: number; y: number }): number | null {
+    let best: number | null = null;
+    let near = this.app.viewport.mobile ? 96 : 140;
+    for (const point of this.points()) {
+      const distance = Math.hypot(pointer.x - point.x, pointer.y - point.y);
+      if (distance < near) {
+        near = distance;
+        best = point.id;
+      }
+    }
+    return best;
+  }
+
+  async drop(cardId: CardId, pointer: { x: number; y: number }): Promise<void> {
+    if (!this.app.canPlay) return;
+    // A obra destacada tem prioridade, mesmo se uma placa vizinha se sobrepõe.
+    const siteId = this.dropTarget(pointer);
+    if (siteId !== null) {
+      await this.play(cardId, siteId);
+      return;
+    }
+    const banner = this.app.controls.all.find(
+      (control) =>
+        control.id.startsWith("site-") &&
+        !control.disabled &&
+        pointer.x >= control.x &&
+        pointer.x <= control.x + control.w &&
+        pointer.y >= control.y &&
+        pointer.y <= control.y + control.h,
+    );
+    if (banner) await this.play(cardId, Number(banner.id.slice(5)));
+  }
+
+  /**
+   * O diorama devolve âncoras em pixels do dispositivo; a camada 2D desenha em
+   * coordenadas de projeto. A conversão mora só aqui: quando ela estava
+   * espalhada, as placas convertiam e os rótulos dos agentes não, e eles saíam
+   * do lugar em qualquer janela que não fosse 1440×900 — a única em que a
+   * escala é 1 e o erro some.
+   */
+  private toDesign(anchor: { x: number; y: number }): { x: number; y: number } {
+    return this.app.viewport.toDesign(anchor.x, anchor.y);
   }
 
   /** Onde as frentes aparecem, vindas do diorama ou de posições de reserva. */
@@ -132,9 +165,8 @@ export class BattleScreen implements Screen {
     if (anchors?.length)
       return anchors.map((anchor) => ({
         id: anchor.id,
-        x: (anchor.x - viewport.offsetX) / viewport.scale,
-        y: (anchor.y - viewport.offsetY) / viewport.scale,
-        top: (anchor.top - viewport.offsetY) / viewport.scale,
+        ...this.toDesign(anchor),
+        top: this.toDesign({ x: anchor.x, y: anchor.top }).y,
       }));
     const rect = viewport.sceneRect("battle");
     return [
@@ -197,10 +229,11 @@ export class BattleScreen implements Screen {
     const card = state.cards.find((c) => c.id === this.selection) ?? null;
     const progress = this.progressOf(team);
     const preview = PlayPreview.from(state);
+    const delivery = DeliveryValue.from(state);
 
     // O acerto de qualquer pessoa da guilda acende a frente: o time precisa ver
     // que a obra acelerou, mesmo quem não respondeu.
-    for (const job of team.jobs)
+    for (const job of [...team.jobs, ...team.quizzes])
       if (job.question?.correct && !this.boosted.has(job.id)) {
         this.boosted.add(job.id);
         this.boost = { siteId: job.siteId, at: this.app.time };
@@ -218,6 +251,9 @@ export class BattleScreen implements Screen {
             preview: card ? preview.of(card, site, team, energy) : null,
             aiming: this.aimed === point.id,
             progress: progress[point.id]!,
+            multiplier: delivery.multiplier(site),
+            value: delivery.reward(site),
+            nextMove: delivery.nextMove(site, team),
             // Abre com uma carta na mão, na frente escolhida, na apontada e sob
             // o cursor ou o foco do teclado. A placa cresce para fora do ponto
             // que a chamou, então não há tremulação ao entrar nela.
@@ -266,7 +302,14 @@ export class BattleScreen implements Screen {
       );
     }
     this.drawGroundActions(points, states, team, Boolean(card));
-    this.chips.draw(this.app.world?.agentAnchors() ?? [], team, now);
+    this.chips.draw(
+      (this.app.world?.agentAnchors() ?? []).map((anchor) => ({
+        ...anchor,
+        ...this.toDesign(anchor),
+      })),
+      team,
+      now,
+    );
 
     // O botão de entrega precisa existir sempre: o teclado e os testes o
     // alcançam mesmo quando a frente escolhida ainda não está pronta.
@@ -368,8 +411,10 @@ export class BattleScreen implements Screen {
       if (!ready || state.site.level >= 3 || holdingCard) continue;
 
       if (this.selectedSite === point.id) {
+        // O botão diz o que a entrega vai pagar de verdade, e não os 100 da
+        // base: é aí que o multiplicador vira uma decisão visível.
         const label = state.site.reviewed
-          ? "Entregar +100"
+          ? `Entregar +${state.value}`
           : "Entregar sem revisão";
         const w = mobile ? 150 : 196;
         controls.button(

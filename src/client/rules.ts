@@ -1,4 +1,5 @@
 import type {
+  CardId,
   CardView,
   SiteView,
   Snapshot,
@@ -207,5 +208,80 @@ export class BuildProgress {
       100,
       site.built + this.rate(team, site) * Math.max(0, now - snapshotElapsed),
     );
+  }
+}
+
+/**
+ * O próximo passo que o Harness recomenda numa frente. Nunca é "harness": o
+ * conselho só aparece onde a proteção já está em pé.
+ */
+export type NextMove = Exclude<CardId, "harness"> | "deliver";
+
+/**
+ * Quanto vale entregar esta frente, e qual é o próximo passo certo nela.
+ *
+ * Repete `Site.multiplier()`, `Site.reward()` e a ordem de jogo do servidor
+ * para que a placa mostre o número antes da entrega, e para que a frente
+ * protegida saiba apontar a carta seguinte. O servidor continua sendo quem
+ * paga; isto é só a leitura, e um teste cruza as duas contas.
+ */
+export class DeliveryValue {
+  constructor(private readonly story: StoryView) {}
+
+  static from(state: Snapshot): DeliveryValue {
+    return new DeliveryValue(state.story);
+  }
+
+  /** Dois ou mais Construtores neste nível, cada um no seu diretório. */
+  parallel(site: SiteView): boolean {
+    return site.contributors > 1 && !site.conflicted;
+  }
+
+  multiplier(site: SiteView): number {
+    if (site.conflicted) return 1;
+    const level = Math.min(site.level, this.story.harnessBonus.length - 1);
+    return (
+      1 +
+      (site.harness ? this.story.harnessBonus[level]! : 0) +
+      (this.parallel(site) ? this.story.parallelBonus : 0)
+    );
+  }
+
+  reward(site: SiteView): number {
+    const multiplier = this.multiplier(site);
+    const safe = site.reviewed && site.faults === 0;
+    const base = safe ? this.story.scoreSafe : this.story.scoreUnsafe;
+    return Math.round(base * multiplier + site.studyBonus * (multiplier - 1));
+  }
+
+  /**
+   * A carta que a frente protegida recomenda agora.
+   *
+   * É a ordem que a apresentação ensina: isolar antes de somar Construtores,
+   * revisar antes de entregar. Devolve null quando somar mais um agente só
+   * criaria conflito, que é justamente a jogada a não fazer.
+   */
+  nextMove(site: SiteView, team: TeamView): NextMove | null {
+    if (site.level >= this.story.maxLevel) return null;
+    if (
+      team.jobs.some(
+        (job) => job.siteId === site.id && job.cardId === "reviewer",
+      )
+    )
+      return null;
+    if (site.built >= 100) return site.reviewed ? "deliver" : "reviewer";
+
+    const builders = team.jobs.filter((job) => job.cardId === "builder");
+    const here = builders.filter((job) => job.siteId === site.id);
+    if (!here.length) return "builder";
+
+    const taken = new Set(builders.map((job) => job.workspace));
+    const freeSlot = Array.from(
+      { length: site.worktrees },
+      (_, index) => `wt:${site.id}:${index}`,
+    ).some((slot) => !taken.has(slot));
+    if (freeSlot) return "builder";
+    if (site.worktrees < this.story.maxWorktrees) return "worktree";
+    return null;
   }
 }

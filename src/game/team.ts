@@ -43,6 +43,14 @@ export class Team {
   energy = STORY.maxEnergy;
   readonly sites: Site[] = SITES.map((blueprint) => new Site(blueprint));
   jobs: Job[] = [];
+  /**
+   * Tarefas que já acabaram e cuja pergunta continua aberta.
+   *
+   * O agente voltou para o acampamento e não conta mais no limite da guilda,
+   * mas quem o enviou ainda pode responder — a janela de leitura é da pergunta,
+   * não do trabalho.
+   */
+  quizzes: Job[] = [];
   log: LogEntryView[] = [];
   quizAt = 0;
   readonly stats: {
@@ -57,6 +65,7 @@ export class Team {
     incidents: 0,
     learned: 0,
     missed: 0,
+    combos: 0,
   };
 
   constructor(
@@ -170,6 +179,24 @@ export class Team {
     this.jobs = this.jobs.filter((other) => other !== job);
   }
 
+  /** Guarda a pergunta ainda aberta de uma tarefa que terminou. */
+  retire(jobs: readonly Job[], elapsed: number): void {
+    for (const job of jobs) if (job.open(elapsed)) this.quizzes.push(job);
+  }
+
+  /** Descarta as perguntas cuja janela fechou sem resposta. */
+  expireQuizzes(elapsed: number): void {
+    this.quizzes = this.quizzes.filter((job) => job.open(elapsed));
+  }
+
+  /** A tarefa dona desta pergunta, esteja o agente em campo ou não. */
+  quizOf(jobId: unknown): Job | undefined {
+    return (
+      this.jobs.find((job) => job.id === jobId) ??
+      this.quizzes.find((job) => job.id === jobId)
+    );
+  }
+
   removeBuildersAt(siteId: number): Job[] {
     const crew = this.buildersAt(siteId);
     this.jobs = this.jobs.filter(
@@ -201,6 +228,7 @@ export class Team {
       energy: this.energy,
       sites: this.sites.map((site) => site.view()),
       jobs: this.jobs.map((job) => job.view()),
+      quizzes: this.quizzes.map((job) => job.view()),
       log: this.log,
       stats: { ...this.stats },
     };

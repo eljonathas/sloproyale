@@ -50,6 +50,12 @@ export interface QuestionView {
   readonly answer: number | null;
   /** Explicação do slide, revelada só depois de responder. */
   readonly why: string | null;
+  /**
+   * Quando a pergunta fecha, no relógio da partida. É o relógio dela, e não o
+   * da tarefa: um Revisor de 8 s não pode decidir quanto tempo alguém tem para
+   * ler o enunciado.
+   */
+  readonly expiresAt: number;
 }
 
 /** Uma tarefa em andamento: um agente em campo. */
@@ -88,6 +94,13 @@ export interface SiteView {
   readonly harness: boolean;
   /** Construtores que trabalharam neste nível, e que a revisão vai convergir. */
   readonly contributors: number;
+  /**
+   * Houve conflito de checkout neste nível. A revisão limpa as falhas, mas o
+   * retrabalho não se desfaz: a entrega deste nível sai sem multiplicador.
+   */
+  readonly conflicted: boolean;
+  /** Bônus de estudo já creditado neste nível, que a entrega multiplica. */
+  readonly studyBonus: number;
 }
 
 /** Contagens usadas no resumo do fim da partida. */
@@ -101,6 +114,8 @@ export interface TeamStats {
   readonly incidents: number;
   readonly learned: number;
   readonly missed: number;
+  /** Entregas que saíram com multiplicador, ou seja, combinação bem jogada. */
+  readonly combos: number;
 }
 
 /** Uma entrada do diário da guilda. */
@@ -124,6 +139,11 @@ export interface TeamView {
   readonly energy: number;
   readonly sites: readonly SiteView[];
   readonly jobs: readonly JobView[];
+  /**
+   * Tarefas que já terminaram e cuja pergunta continua aberta. Elas não contam
+   * agentes em campo nem aparecem no mapa: são só a pergunta esperando resposta.
+   */
+  readonly quizzes: readonly JobView[];
   readonly log: readonly LogEntryView[];
   readonly stats: TeamStats;
 }
@@ -154,6 +174,13 @@ export interface StoryView {
   readonly regen: number;
   readonly scoreSafe: number;
   readonly scoreUnsafe: number;
+  /**
+   * Quanto o Harness soma ao multiplicador da frente, por nível a entregar.
+   * Cresce com o nível: proteger cedo e manter vale mais do que comprar no fim.
+   */
+  readonly harnessBonus: readonly [number, number, number];
+  /** Quanto dois ou mais canteiros isolados somam ao multiplicador. */
+  readonly parallelBonus: number;
 }
 
 /** Parâmetros do estudo em campo. */
@@ -162,6 +189,8 @@ export interface StudyView {
   /** Fração do trabalho restante que o acerto adianta. */
   readonly speedup: number;
   readonly revealSeconds: number;
+  /** Segundos que a pergunta fica aberta, independentemente da tarefa. */
+  readonly windowSeconds: number;
 }
 
 /** O estado inteiro da sala, do ponto de vista de uma pessoa. */

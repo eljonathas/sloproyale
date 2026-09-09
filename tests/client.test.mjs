@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from '../dist/server.js';
 import { QUESTIONS } from '../dist/content/questions.js';
-import { STORY } from '../dist/content/story.js';
+import { STORY, STUDY } from '../dist/content/story.js';
 import { installBrowser, makeClient } from './harness.mjs';
 
 // Exercita as classes reais do cliente contra HTTP. Só a superfície do
@@ -190,4 +190,111 @@ test('client: frente cara não bloqueia carta que pode ser usada numa frente mai
  assert.equal(team.jobs.length,0,'a frente cara recusa');assert.ok(team.energy>=2,'a recusa não consome contexto');
  await c.click('card-builder');await c.click('site-1');
  assert.equal(team.jobs.length,1);assert.equal(team.jobs[0].siteId,1);
+});
+
+// A conta do multiplicador vive duas vezes: em game/site.ts e em client/rules.ts.
+// Se uma mudar sozinha, a placa promete um número e o servidor paga outro.
+test('client: o valor da entrega na placa é o que o servidor paga',async t=>{
+ const {arena}=await serve(t);const now=Date.now();arena.now=()=>now;
+ const combinacoes=[];
+ for(const nivel of [0,1,2])for(const harness of [false,true])for(const contribuintes of [1,2])for(const conflito of [false,true])for(const acertos of [0,1]){
+  const c=await client();await c.create(true);
+  const room=arena.rooms.get(c.state().code),site=room.teams[0].sites[0];
+  site.level=nivel;site.harness=harness;site.contributors=contribuintes;
+  site.conflicted=conflito;site.studyBonus=acertos*20;
+  site.built=100;site.reviewed=true;site.faults=0;
+  await c.refresh();
+  const previsto=c.value(0);
+  const antes=c.state().teams[0].score;
+  await c.click('deliver');
+  const pago=c.state().teams[0].score-antes;
+  assert.equal(previsto,pago,`nível ${nivel+1}, harness ${harness}, ${contribuintes} contribuintes, conflito ${conflito}, ${acertos} acerto(s): placa ${previsto} vs servidor ${pago}`);
+  combinacoes.push(pago);
+ }
+ assert.equal(combinacoes.length,48);
+ assert.ok(new Set(combinacoes).size>=6,'a matriz precisa variar, senão o teste passa com tudo igual');
+});
+
+// O Harness é o painel de controle da frente: ele aponta a jogada certa, na
+// ordem que a apresentação ensina — isolar antes de somar, revisar antes de entregar.
+test('client: a frente protegida aponta a próxima carta na ordem certa',async t=>{
+ const {arena}=await serve(t);const now=Date.now();arena.now=()=>now;
+ const c=await client();await c.create(true);
+ const room=arena.rooms.get(c.state().code),team=room.teams[0],site=team.sites[0];
+
+ await c.refresh();
+ assert.equal(c.nextMove(0),'builder','obra vazia pede Construtor');
+
+ await c.click('card-builder');await c.click('site-0');
+ if(c.draw().some(k=>k.id==='quiz-later'))await c.click('quiz-later');
+ assert.equal(c.nextMove(0),'worktree','com um Construtor no checkout, isole antes de somar outro');
+
+ team.energy=12;await c.refresh();
+ await c.click('card-worktree');await c.click('site-0');
+ assert.equal(c.nextMove(0),'builder','com canteiro livre, o segundo Construtor entra sem conflito');
+
+ team.energy=12;await c.refresh();
+ await c.click('card-builder');await c.click('site-0');
+ if(c.draw().some(k=>k.id==='quiz-later'))await c.click('quiz-later');
+ assert.equal(c.nextMove(0),'worktree','os dois canteiros ocupados: abra o segundo');
+
+ site.built=100;team.jobs=[];team.energy=12;await c.refresh();
+ assert.equal(c.nextMove(0),'reviewer','obra pronta pede Revisor');
+ site.reviewed=true;await c.refresh();
+ assert.equal(c.nextMove(0),'deliver','obra revisada pede a entrega');
+ site.level=3;await c.refresh();
+ assert.equal(c.nextMove(0),null,'frente concluída não pede nada');
+});
+
+// A janela se recolhe sozinha quando o agente volta, para liberar o baralho.
+// Isso precisa acontecer uma vez, na virada: recolher a cada quadro impedia a
+// pessoa de reabrir a pergunta que ainda tinha 16 s de vida.
+test('client: a pergunta se recolhe quando o agente volta e reabre quando a pessoa pede',async t=>{
+ const {arena}=await serve(t);let now=Date.now();arena.now=()=>now;
+ const c=await client();await c.create(true);
+ const room=arena.rooms.get(c.state().code),team=room.teams[0];
+
+ await c.click('card-builder');await c.click('site-0');
+ assert.ok(c.draw().some(k=>/^quiz-\d$/.test(k.id)),'a pergunta abre sobre o baralho');
+ assert.ok(!c.draw().some(k=>k.id.startsWith('card-')),'e o baralho sai de cena');
+
+ // A obra fecha; o agente vai embora e a pergunta fica.
+ now+=STORY.buildSeconds*1000;arena.tick();await c.refresh();
+ assert.equal(team.jobs.length,0,'o agente voltou');
+ assert.equal(team.quizzes.length,1,'a pergunta continua aberta');
+ const recolhida=c.draw();
+ assert.ok(recolhida.some(k=>k.id.startsWith('card-')),'o baralho volta sozinho');
+ assert.ok(recolhida.some(k=>k.id==='quiz-open'),'e a chamada da pergunta aparece');
+
+ // Reabrir tem de funcionar, e continuar funcionando quadro após quadro.
+ await c.click('quiz-open');
+ for(let quadro=0;quadro<5;quadro++)
+  assert.ok(c.draw().some(k=>/^quiz-\d$/.test(k.id)),`quadro ${quadro}: a janela precisa continuar aberta`);
+
+ // Responder depois paga os pontos, sem obra para acelerar.
+ const job=team.quizzes[0];
+ const certa=QUESTIONS.find(q=>q.id===job.questionId).answer;
+ await c.click('quiz-'+certa);
+ assert.equal(team.score,c.state().study.bonus);
+ assert.equal(team.sites[0].studyBonus,c.state().study.bonus);
+ assert.equal(team.quizzes.length,0);
+});
+
+test('client: a janela da pergunta não encolhe com o paralelismo',async t=>{
+ const {arena}=await serve(t);let now=Date.now();arena.now=()=>now;
+ const c=await client();await c.create(true);
+ const room=arena.rooms.get(c.state().code),team=room.teams[0];
+ await c.click('card-worktree');await c.click('site-0');
+ team.energy=STORY.maxEnergy;await c.refresh();
+ // A primeira pergunta fica em espera; a segunda entra na fila atrás dela.
+ const dispensa=async()=>{if(c.draw().some(k=>k.id==='quiz-later'))await c.click('quiz-later');};
+ await c.click('card-builder');await c.click('site-0');await dispensa();
+ await c.click('card-builder');await c.click('site-0');await dispensa();
+ // Dois Construtores isolados fecham a obra em metade do tempo.
+ const janelas=team.jobs.map(j=>j.questionExpiresAt-room.elapsed);
+ assert.ok(janelas.every(j=>Math.abs(j-STUDY.windowSeconds)<0.01),`janelas ${janelas} deveriam ser de ${STUDY.windowSeconds}s`);
+ now+=(STORY.buildSeconds/2)*1000;arena.tick();await c.refresh();
+ assert.equal(team.sites[0].built,100,'a obra fechou em metade do tempo');
+ assert.equal(team.quizzes.length,2,'as duas perguntas continuam abertas');
+ assert.ok(team.quizzes.every(j=>j.questionExpiresAt-room.elapsed>10),'com folga para ler');
 });

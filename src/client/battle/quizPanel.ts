@@ -31,6 +31,8 @@ export class QuizPanel {
   private reveal: QuestionView | null = null;
   private revealAt = 0;
   private minimized = false;
+  /** Pergunta já recolhida sozinha, para não recolher de novo a cada quadro. */
+  private collapsed: number | null = null;
 
   constructor(
     private readonly app: AgentArena,
@@ -42,6 +44,7 @@ export class QuizPanel {
     this.jobId = null;
     this.reveal = null;
     this.minimized = false;
+    this.collapsed = null;
   }
 
   /** Se a janela está ocupando o lugar do baralho neste quadro. */
@@ -52,12 +55,17 @@ export class QuizPanel {
   private drawnFull = false;
   callingBack = false;
 
-  /** A tarefa cuja pergunta esta pessoa ainda deve responder. */
+  /**
+   * A tarefa cuja pergunta esta pessoa ainda deve responder.
+   *
+   * Procura também nas perguntas de agentes que já voltaram: a janela de
+   * leitura é da pergunta, e não do trabalho, então ela sobrevive à tarefa.
+   */
   private pending(team: TeamView): JobView | null {
     const me = this.app.session.me;
     if (!me) return null;
     return (
-      team.jobs
+      [...team.jobs, ...team.quizzes]
         .filter(
           (job) =>
             job.question &&
@@ -98,6 +106,19 @@ export class QuizPanel {
       this.openedAt = this.app.time;
       this.reveal = null;
       this.minimized = false;
+      this.collapsed = null;
+    }
+    // Enquanto o agente trabalha a pergunta ocupa o baralho, porque responder
+    // cedo acelera a obra. Quando ele volta, ela se recolhe sozinha para a
+    // chamada compacta: continua valendo pontos, sem prender as cartas. Só na
+    // virada — depois disso quem reabre é a pessoa.
+    if (
+      pending &&
+      this.collapsed !== pending.id &&
+      !team.jobs.some((job) => job.id === pending.id)
+    ) {
+      this.minimized = true;
+      this.collapsed = pending.id;
     }
     const revealFor = (this.app.state?.study.revealSeconds ?? 4.5) * 1000;
     const revealing =
@@ -124,7 +145,7 @@ export class QuizPanel {
   private callback(job: JobView, now: number): void {
     const { painter, controls, viewport } = this.app;
     const mobile = viewport.mobile;
-    const left = Math.max(0, job.endsAt - now);
+    const left = Math.max(0, job.question!.expiresAt - now);
     const urgent = left <= 4;
     const map = viewport.sceneRect("battle");
     const x = mobile ? 18 : 1144;
@@ -217,10 +238,8 @@ export class QuizPanel {
     painter.alpha = 0.25 + 0.75 * ease;
     painter.panel(x, top, w, h);
 
-    const left = pending ? Math.max(0, pending.endsAt - now) : 0;
-    const span = pending
-      ? Math.max(0.001, pending.endsAt - pending.startedAt)
-      : 1;
+    const left = pending ? Math.max(0, pending.question!.expiresAt - now) : 0;
+    const span = this.app.state?.study.windowSeconds ?? 25;
     const urgent = Boolean(pending) && left <= 4;
     painter.rect(x + 8, top + 8, w - 16, 5, "#0b1c2e", 3);
     if (pending)

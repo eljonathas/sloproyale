@@ -83,7 +83,9 @@ export async function makeClient() {
   const { LobbyScreen } = await import("../dist/client/screens/lobby.js");
   const { ModalStack } = await import("../dist/client/screens/modals.js");
   const { ResultsScreen } = await import("../dist/client/screens/results.js");
-  const { BuildProgress, PlayPreview } = await import("../dist/client/rules.js");
+  const { BuildProgress, DeliveryValue, PlayPreview } = await import(
+    "../dist/client/rules.js"
+  );
 
   const listeners = {};
   const context = stubContext();
@@ -151,6 +153,21 @@ export async function makeClient() {
         team.sites[siteId],
         team,
         app.session.energy(team),
+      );
+    },
+    value: (siteId) =>
+      DeliveryValue.from(app.session.state).reward(
+        app.session.team.sites[siteId],
+      ),
+    multiplier: (siteId) =>
+      DeliveryValue.from(app.session.state).multiplier(
+        app.session.team.sites[siteId],
+      ),
+    nextMove: (siteId) => {
+      const team = app.session.team;
+      return DeliveryValue.from(app.session.state).nextMove(
+        team.sites[siteId],
+        team,
       );
     },
     progress: (siteId) => {

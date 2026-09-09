@@ -200,7 +200,7 @@ export class ModalStack {
     const { x, y, w, h } = this.box(
       "Como conquistar a Cidadela",
       mobile ? 398 : 740,
-      mobile ? Math.min(viewport.height - 24, 700) : 620,
+      mobile ? Math.min(viewport.height - 24, 760) : 700,
     );
     const bonus = state?.study.bonus ?? 20;
     const rules: readonly [string, string, string][] = [
@@ -211,18 +211,23 @@ export class ModalStack {
       ],
       [
         "brain",
-        "2. Responda enquanto ele trabalha",
-        `Cada Construtor ou Revisor abre uma pergunta da apresentação. Acertar corta metade do tempo e vale +${bonus} pontos.`,
+        "2. Responda sem correria",
+        `Cada agente enviado abre uma pergunta, aberta por ${state?.study.windowSeconds ?? 25} s. Acertar vale +${bonus} pontos e, com o agente em campo, acelera a obra.`,
       ],
       [
         "branch",
-        "3. Abra canteiros para paralelizar",
-        "Cada Worktree é um diretório e cabe um agente. Com canteiro livre, dois Construtores constroem em metade do tempo; sem ele, rendem metade cada.",
+        "3. Abra o canteiro antes de somar",
+        "Cada Worktree é um diretório e cabe um agente. Sem canteiro livre, dois Construtores rendem metade, ganham falhas e a entrega sai sem multiplicador.",
+      ],
+      [
+        "shield",
+        "4. Proteja a frente com Harness",
+        "Barra entrega sem revisão e comandos do caos, aponta a próxima carta na placa e multiplica a entrega: +0,3, +0,6 e +1,0 por nível.",
       ],
       [
         "gem",
-        "4. Revise, integre e entregue",
-        "A revisão soma +5 s por frente extra para convergir. Harness barra entrega sem revisão: revisada vale 100, sem revisão 40.",
+        "5. Revise, integre e entregue",
+        "Revisada vale 100, sem revisão 40. O multiplicador da frente vale sobre esse número e sobre o bônus das perguntas.",
       ],
     ];
     let cursor = y + 96;
@@ -240,15 +245,18 @@ export class ModalStack {
           mobile ? 21 : 23,
         ) + 26;
     }
-    painter.wrap(
-      `Até ${state?.story.maxAgents ?? 6} agentes e ${state?.story.maxEnergy ?? 12} de contexto por guilda. Construtor e Revisor custam 2, 3 e 4 nos níveis 1, 2 e 3. Responder não consome contexto.`,
-      x + 27,
-      cursor,
-      w - 54,
-      13,
-      COLORS.gold,
-      19,
-    );
+    // O rodapé só entra quando sobra altura acima do botão: no celular as cinco
+    // regras já ocupam a caixa, e um texto por baixo do botão não se lê.
+    if (cursor + 38 < y + h - 72)
+      painter.wrap(
+        `Até ${state?.story.maxAgents ?? 6} agentes e ${state?.story.maxEnergy ?? 12} de contexto por guilda. Construtor e Revisor custam 2, 3 e 4 nos níveis 1, 2 e 3. Responder não consome contexto.`,
+        x + 27,
+        cursor,
+        w - 54,
+        13,
+        COLORS.gold,
+        19,
+      );
     controls.button(
       "understood",
       x + 26,

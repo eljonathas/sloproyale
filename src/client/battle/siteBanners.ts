@@ -1,6 +1,6 @@
 import type { SiteView, TeamView } from "../../shared/protocol.js";
 import type { AgentArena } from "../app.js";
-import type { Preview } from "../rules.js";
+import type { NextMove, Preview } from "../rules.js";
 import { COLORS, clamp } from "../theme.js";
 import type { Rect } from "../viewport.js";
 
@@ -21,6 +21,12 @@ export interface SiteState {
   readonly progress: number;
   /** A placa mostra o texto completo, e não só nome e barra. */
   readonly open: boolean;
+  /** Multiplicador que esta entrega vai receber. */
+  readonly multiplier: number;
+  /** Pontos que a entrega paga agora, já multiplicados. */
+  readonly value: number;
+  /** A carta que o Harness recomenda, quando a frente está protegida. */
+  readonly nextMove: NextMove | null;
 }
 
 /** A caixa já resolvida de uma placa. */
@@ -45,6 +51,26 @@ export interface Boost {
 }
 
 const BOOST_MS = 1500;
+
+/**
+ * Como cada próximo passo aparece no conselho da frente protegida. Os rótulos
+ * são curtos de propósito: a placa é estreita, e o porquê inteiro já está no
+ * diário da guilda quando a jogada acontece.
+ */
+const ADVICE: Record<NextMove, readonly [string, string, string]> = {
+  builder: ["tools", "Harness sugere: Construtor", "#edba80"],
+  worktree: ["branch", "Harness sugere: isolar antes", "#83dbb1"],
+  reviewer: ["mage", "Harness sugere: Revisor", "#c9a2fa"],
+  deliver: ["crown", "Harness liberou: entregar", COLORS.green],
+};
+
+/** Versões curtas do conselho, para a placa estreita do celular. */
+const ADVICE_SHORT: Record<NextMove, string> = {
+  builder: "Construtor",
+  worktree: "Isole antes",
+  reviewer: "Revisor",
+  deliver: "Pode entregar",
+};
 
 /**
  * As placas das frentes.
@@ -77,14 +103,15 @@ export class SiteBanners {
     const boxes: Box[] = points.map((point) => {
       const state = states.get(point.id)!;
       const w = state.open ? (mobile ? 148 : 218) : mobile ? 124 : 158;
+      // A frente protegida ganha uma linha a mais: é onde o Harness diz qual
+      // é a próxima carta certa.
+      const advice = state.site.harness && state.nextMove ? (mobile ? 15 : 17) : 0;
       const h = state.preview
         ? mobile
           ? 74
           : 98
         : state.open
-          ? mobile
-            ? 56
-            : 78
+          ? (mobile ? 56 : 78) + advice
           : mobile
             ? 38
             : 44;
@@ -257,8 +284,34 @@ export class SiteBanners {
       );
       return box;
     }
-    this.drawBadges(x, line3, site, team, progress);
+    this.drawBadges(x, line3, state, team, progress);
+    if (site.harness && state.nextMove)
+      this.drawAdvice(x, line3 + (mobile ? 15 : 17), w, state.nextMove);
     return box;
+  }
+
+  /**
+   * O conselho da frente protegida.
+   *
+   * O Harness controla a operação, então é ele quem sabe qual é o próximo passo
+   * legítimo: isolar antes de somar Construtores, revisar antes de entregar.
+   * Quem pagou pela proteção joga com esse mapa à vista.
+   */
+  private drawAdvice(x: number, y: number, w: number, move: NextMove): void {
+    const { painter, viewport } = this.app;
+    const mobile = viewport.mobile;
+    const [icon, label, color] = ADVICE[move];
+    painter.rect(x + 8, y - (mobile ? 7 : 8), w - 16, mobile ? 14 : 16, "#12314c", 5);
+    painter.icon(icon, x + 18, y, mobile ? 10 : 12, color);
+    painter.text(
+      mobile ? ADVICE_SHORT[move] : label,
+      x + 27,
+      y,
+      mobile ? 9 : 11,
+      color,
+      "left",
+      900,
+    );
   }
 
   /**
@@ -378,12 +431,13 @@ export class SiteBanners {
   private drawBadges(
     x: number,
     line3: number,
-    site: SiteView,
+    state: SiteState,
     team: TeamView,
     progress: number,
   ): void {
     const { painter, viewport } = this.app;
     const mobile = viewport.mobile;
+    const site = state.site;
     let cursor = 12;
     const mark = (icon: string, color: string, label: string) => {
       painter.icon(icon, x + cursor + 6, line3, mobile ? 12 : 15, color);
@@ -414,8 +468,18 @@ export class SiteBanners {
         COLORS.green,
         `${site.worktrees} canteiro${site.worktrees > 1 ? "s" : ""}`,
       );
-    if (site.harness)
+    // O multiplicador substitui o selo simples do harness: ele já diz que a
+    // frente está protegida e quanto essa disciplina vale na entrega.
+    if (state.multiplier > 1)
+      mark(
+        site.harness ? "shield" : "branch",
+        COLORS.gold,
+        `${state.multiplier.toLocaleString("pt-BR")}×`,
+      );
+    else if (site.harness)
       mark("shield", COLORS.blue, mobile ? "protegida" : "harness");
+    if (site.conflicted)
+      mark("cross", COLORS.red, mobile ? "sem bônus" : "conflito · sem bônus");
     if (site.faults)
       mark(
         "gem",

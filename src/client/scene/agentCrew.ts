@@ -158,17 +158,16 @@ export class AgentCrew {
     object.scale.multiplyScalar(1.2);
     this.island.add(object);
 
-    const path = this.island.route(job.siteId);
-    // Frentes paralelas colocam até três agentes na mesma obra: cada um recebe
-    // um posto próprio, senão os modelos ficam sobrepostos.
+    // Frentes paralelas colocam vários agentes na mesma obra: cada um recebe um
+    // posto próprio, senão os modelos ficam sobrepostos. A rota resolve a
+    // geometria — o posto sai de lado sem tirar o agente da linha da obra.
     const posted = [...this.agents.values()].filter(
       (agent) => agent.job.siteId === job.siteId,
     ).length;
-    const [x, z] = SITE_COORDS[job.siteId]!;
-    path[path.length - 1] = new THREE.Vector3(
-      x + LANES[posted % LANES.length]!,
-      0.55,
-      z + (job.siteId === 1 ? -2.9 : 2.5) + (posted >= 3 ? 1.1 : 0),
+    const path = this.island.route(
+      job.siteId,
+      LANES[posted % LANES.length]!,
+      Math.floor(posted / LANES.length) * 1.5,
     );
     this.island.flashCamp(now);
 

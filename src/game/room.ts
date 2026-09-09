@@ -299,16 +299,19 @@ export class Room {
     if (rivals.length) {
       job.conflict = true;
       site.damage();
+      site.taint();
       team.stats.conflicts++;
       for (const rival of rivals) {
         rival.conflict = true;
-        team.sites[rival.siteId]!.damage();
+        const hit = team.sites[rival.siteId]!;
+        hit.damage();
+        hit.taint();
       }
       this.log(
         team,
         "bad",
         "Dois agentes no mesmo checkout!",
-        `Sem canteiro livre, ${playerName} e ${rivals[0]!.playerName} editam o mesmo diretório: cada um rende metade e as obras ganham falhas. Abra uma Worktree para separar.`,
+        `Sem canteiro livre, ${playerName} e ${rivals[0]!.playerName} editam o mesmo diretório: cada um rende metade, as obras ganham falhas e estas entregas saem sem multiplicador. Abra uma Worktree antes de somar Construtores.`,
         site.id,
       );
       return;
@@ -321,9 +324,11 @@ export class Room {
         `${site.name}: ${helpers + 1} frentes em paralelo`,
         `${playerName} entrou num canteiro isolado. A obra fecha em ${Math.round(
           STORY.buildSeconds / (helpers + 1),
-        )} s em vez de ${STORY.buildSeconds} s, e a revisão soma ${
+        )} s em vez de ${STORY.buildSeconds} s, a revisão soma ${
           helpers * STORY.integrationSeconds
-        } s para convergir as branches.`,
+        } s para convergir as branches e a entrega ganha +${STORY.parallelBonus.toLocaleString(
+          "pt-BR",
+        )} no multiplicador.`,
         site.id,
       );
       return;
@@ -345,14 +350,18 @@ export class Room {
   ): AnswerResult {
     this.assertPlayable();
     const { player, team } = this.actor(key);
-    const job = team.jobs.find((candidate) => candidate.id === jobId);
-    check(job, "Essa tarefa já terminou. A pergunta expirou com ela.");
+    const job = team.quizOf(jobId);
+    check(job, "Essa pergunta expirou.");
     check(
       job.askedTo === player.id,
       "A pergunta é de quem enviou o agente.",
       403,
     );
     check(!job.answered, "Você já respondeu esta pergunta.");
+    check(this.elapsed < job.questionExpiresAt, "Essa pergunta expirou.");
+    // O agente ainda em campo é o que pode ser acelerado. Depois que ele volta,
+    // a pergunta continua valendo pontos, mas não há mais obra para adiantar.
+    const working = team.jobs.includes(job);
     const question = findQuestion(job.questionId);
     check(question, "Pergunta indisponível.");
     check(
@@ -370,20 +379,23 @@ export class Room {
     if (correct) {
       // O acerto corta metade do que falta. Na obra isso empurra o trabalho em
       // si, e não um relógio, porque o ritmo é somado entre os Construtores.
-      if (job.isBuilder) {
+      if (working && job.isBuilder) {
         site.fastForward(STUDY.speedup);
         team.retime(this.elapsed);
-      } else {
+      } else if (working) {
         job.endsAt =
           this.elapsed + job.remaining(this.elapsed) * (1 - STUDY.speedup);
       }
       team.score += STUDY.bonus;
+      site.studyBonus += STUDY.bonus;
       team.stats.learned++;
       this.log(
         team,
         "score",
         `${player.name} acertou · +${STUDY.bonus} pontos`,
-        `${question.why} O agente em ${site.name} acelerou.`,
+        working
+          ? `${question.why} O agente em ${site.name} acelerou.`
+          : `${question.why} O agente já tinha voltado, então não houve obra para adiantar.`,
         job.siteId,
       );
     } else {
@@ -397,6 +409,7 @@ export class Room {
       );
     }
 
+    team.expireQuizzes(this.elapsed);
     return {
       question: job.questionView()!,
       siteId: job.siteId,
@@ -429,24 +442,42 @@ export class Room {
     }
 
     const safe = site.safe;
-    const points = safe ? STORY.scoreSafe : STORY.scoreUnsafe;
+    const multiplier = site.multiplier();
+    const points = site.reward();
     team.score += points;
     team.stats.deliveries++;
     if (safe) team.stats.safe++;
     else team.stats.unsafe++;
+    if (multiplier > 1) team.stats.combos++;
+    // A frase da entrega é o momento de ensino: ela diz o que multiplicou o
+    // placar, ou o que teria multiplicado se a frente tivesse sido conduzida
+    // de outro jeito.
+    const body = safe
+      ? `${player.name} integrou uma entrega revisada. ${this.creditLine(site, multiplier)}`
+      : "A obra foi entregue sem validação. A guilda perdeu a oportunidade dos 100 pontos deste nível. Revisão transforma trabalho em entrega confiável.";
     site.deliver();
     this.log(
       team,
       safe ? "score" : "bad",
       `${site.name} nível ${site.level} · +${points} pontos`,
-      safe
-        ? `${player.name} integrou uma entrega revisada. A construção evoluiu!`
-        : "A obra foi entregue sem validação. A guilda perdeu a oportunidade dos 100 pontos deste nível. Revisão transforma trabalho em entrega confiável.",
+      body,
       site.id,
     );
 
     if (this.teams.every((other) => other.sites.every((s) => s.complete)))
       this.finish();
+  }
+
+  /** Por que a entrega valeu o que valeu, na linguagem da apresentação. */
+  private creditLine(site: Site, multiplier: number): string {
+    if (site.conflicted)
+      return "Sem multiplicador: houve conflito de checkout neste nível. A revisão limpou as falhas, mas o retrabalho já tinha custado o bônus.";
+    const wins: string[] = [];
+    if (site.harness) wins.push("Harness segurando a operação");
+    if (site.parallel) wins.push(`${site.contributors} canteiros isolados`);
+    if (!wins.length)
+      return `Multiplicador 1×. Um Harness na frente e Construtores em canteiros próprios multiplicariam esta entrega.`;
+    return `${wins.join(" e ")}: multiplicador ${multiplier.toLocaleString("pt-BR")}×.`;
   }
 
   togglePause(): void {
@@ -470,7 +501,10 @@ export class Room {
     this.phase = "finished";
     this.deadline = null;
     this.paused = false;
-    for (const team of this.teams) team.jobs = [];
+    for (const team of this.teams) {
+      team.jobs = [];
+      team.quizzes = [];
+    }
   }
 
   // ── Relógio ────────────────────────────────────────────────────────────────
@@ -521,6 +555,7 @@ export class Room {
       else this.finishReview(event.team, event.job);
     }
     this.soak(end);
+    for (const team of this.teams) team.expireQuizzes(this.elapsed);
 
     if (this.elapsed >= this.duration) this.finish();
     const second = Math.floor(this.elapsed);
@@ -540,6 +575,7 @@ export class Room {
     site.built = 100;
     site.reviewed = false;
     const crew = team.removeBuildersAt(site.id);
+    team.retire(crew, this.elapsed);
     const extra = Math.max(0, site.contributors - 1);
     this.log(
       team,
@@ -557,6 +593,7 @@ export class Room {
   private finishReview(team: Team, job: Job): void {
     const site = team.sites[job.siteId]!;
     team.remove(job);
+    team.retire([job], this.elapsed);
     site.reviewed = true;
     site.faults = 0;
     team.stats.reviews++;

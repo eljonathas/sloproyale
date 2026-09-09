@@ -95,16 +95,7 @@ export class InputRouter {
     const drag = this.battle.drag;
     this.battle.drag = null;
     if (!drag?.active || this.app.modal) return;
-    const point = this.point(event);
-    const target = this.app.controls.all.find(
-      (control) =>
-        control.id.startsWith("site-") &&
-        point.x >= control.x &&
-        point.x <= control.x + control.w &&
-        point.y >= control.y &&
-        point.y <= control.y + control.h,
-    );
-    if (target) await target.run();
+    await this.battle.drop(drag.cardId, this.point(event));
   }
 
   private key(event: KeyboardEvent): void {

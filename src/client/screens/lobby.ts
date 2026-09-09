@@ -18,6 +18,7 @@ export class LobbyScreen implements Screen {
 
   reset(): void {
     this.page = 0;
+    this.app.teamSelection = -1;
   }
 
   draw(): void {
@@ -25,7 +26,6 @@ export class LobbyScreen implements Screen {
     if (!state) return;
     const mobile = viewport.mobile;
     const W = viewport.width;
-    const H = viewport.height;
     const host = session.isHost;
     const me = state.players.find((player) => player.id === state.me);
     const x = mobile ? 20 : 68;
@@ -88,6 +88,7 @@ export class LobbyScreen implements Screen {
 
     const cols = mobile ? 2 : 4;
     const perPage = mobile ? 4 : 8;
+    this.page = Math.min(this.page, Math.ceil(state.teams.length / perPage) - 1);
     const cardW = mobile ? (W - 54) / 2 : 210;
     const gap = mobile ? 14 : 17;
     const startY = mobile
@@ -97,7 +98,16 @@ export class LobbyScreen implements Screen {
       : !host && !me
         ? 373
         : 330;
-    const cardH = mobile ? 142 : 184;
+    const cardH = mobile ? 120 : 184;
+
+    if (!host && !me)
+      painter.text(
+        "Digite seu nome e toque na guilda para entrar.",
+        x,
+        startY - 18,
+        mobile ? 13 : 16,
+        COLORS.gold,
+      );
 
     state.teams
       .slice(this.page * perPage, (this.page + 1) * perPage)
@@ -122,15 +132,15 @@ export class LobbyScreen implements Screen {
         painter.rect(cx + 12, cy + 9, cardW - 24, 3, team.color, 2);
         painter.shield(
           cx + cardW / 2,
-          cy + (mobile ? 39 : 51),
-          mobile ? 40 : 53,
+          cy + (mobile ? 30 : 51),
+          mobile ? 34 : 53,
           team.color,
           team.icon,
         );
         painter.display(
           team.name,
           cx + cardW / 2,
-          cy + (mobile ? 82 : 106),
+          cy + (mobile ? 64 : 106),
           mobile ? 23 : 27,
           COLORS.cream,
           "center",
@@ -138,22 +148,28 @@ export class LobbyScreen implements Screen {
         painter.text(
           `${members.length} / ${team.capacity} pessoas`,
           cx + cardW / 2,
-          cy + (mobile ? 106 : 134),
+          cy + (mobile ? 86 : 134),
           13,
           COLORS.muted,
           "center",
         );
         painter.text(
           selected && !host
-            ? "Sua escolha"
+            ? me
+              ? "Você está nesta guilda"
+              : "Toque ou confirme abaixo"
             : full
               ? "Guilda completa"
-              : members.length
-                ? members
-                    .map((player) => player.name)
-                    .join(", ")
-                    .slice(0, 22)
-                : "Esperando heróis",
+              : !host
+                ? me
+                  ? "Toque para trocar"
+                  : "Toque para entrar"
+                : members.length
+                  ? members
+                      .map((player) => player.name)
+                      .join(", ")
+                      .slice(0, 22)
+                  : "Esperando heróis",
           cx + cardW / 2,
           cy + cardH - 18,
           11,
@@ -171,17 +187,23 @@ export class LobbyScreen implements Screen {
           }`,
           () => {
             this.app.teamSelection = team.id;
-            if (me) {
-              this.app.fields.name = me.name;
-              void session.joinTeam(me.name, team.id);
+            const name = me?.name ?? this.app.fields.name;
+            if (name.trim().length < 2) {
+              this.app.edit("name", "Como você quer ser chamado?", 22);
+              session.notify("Digite pelo menos 2 letras e confirme sua entrada.");
+              return;
             }
+            return session.joinTeam(name, team.id);
           },
-          host || (full && (!me || me.teamId !== team.id)),
+          host ||
+            session.busy ||
+            !session.connected ||
+            (full && (!me || me.teamId !== team.id)),
         );
       });
 
     const bottom = mobile
-      ? Math.min(H - 143, startY + 2 * (cardH + 16) + 15)
+      ? startY + 2 * (cardH + 16) + 2
       : 759;
     if (state.teams.length > perPage) {
       controls.button("team-prev", x, bottom - 2, 58, 37, "←", () => this.page--, {
@@ -212,7 +234,7 @@ export class LobbyScreen implements Screen {
     }
 
     if (!mobile) this.invite();
-    this.callToAction(host, Boolean(me), bottom);
+    this.callToAction(host, Boolean(me));
   }
 
   private invite(): void {
@@ -258,7 +280,7 @@ export class LobbyScreen implements Screen {
     );
   }
 
-  private callToAction(host: boolean, joined: boolean, _bottom: number): void {
+  private callToAction(host: boolean, joined: boolean): void {
     const { painter, controls, viewport, session, state } = this.app;
     if (!state) return;
     const mobile = viewport.mobile;
@@ -298,6 +320,11 @@ export class LobbyScreen implements Screen {
         "center",
       );
     } else if (!joined) {
+      const selected = state.teams.find(
+        (team) => team.id === this.app.teamSelection,
+      );
+      const full = selected &&
+        state.players.filter((player) => player.teamId === selected.id).length >= selected.capacity;
       controls.button(
         "join-team",
         mobile ? 20 : 1035,
@@ -306,12 +333,18 @@ export class LobbyScreen implements Screen {
         55,
         session.busy
           ? "Entrando…"
-          : "Entrar na guilda " + state.teams[this.app.teamSelection]!.name,
+          : full
+            ? "Guilda completa — escolha outra"
+            : selected
+              ? "Entrar na guilda " + selected.name
+              : "Toque em uma guilda para entrar",
         () =>
           session.joinTeam(this.app.fields.name, this.app.teamSelection),
         {
           kind: "gold",
           disabled:
+            !selected ||
+            Boolean(full) ||
             this.app.fields.name.trim().length < 2 ||
             session.busy ||
             !session.connected,

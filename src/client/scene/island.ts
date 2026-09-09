@@ -12,6 +12,9 @@ export const SITE_COORDS: readonly (readonly [number, number])[] = [
 /** O acampamento da guilda: de onde os agentes saem e para onde voltam. */
 const CAMP = new THREE.Vector3(6.6, 0.55, 7.4);
 
+/** A que distância da obra o agente para para trabalhar. */
+const STANDOFF = 2.6;
+
 /**
  * A ilha: terreno, rio, pontes, estradas, muralha, árvores, bandeiras, faróis
  * e o acampamento.
@@ -145,18 +148,33 @@ export class Island {
   /**
    * Rota até a frente. Quem atravessa o rio passa pela ponte: o trajeto conta
    * que o agente saiu da base e foi até o território.
+   *
+   * O último trecho corre sempre em cima da linha que aponta para a obra, e os
+   * postos laterais abrem para os lados dessa linha. Antes o posto da Forja
+   * ficava fora da estrada, então o agente passava da construção e voltava de
+   * costas para ela; agora quem chega, chega olhando para a obra.
    */
-  route(siteId: number): any[] {
+  route(siteId: number, lane = 0, row = 0): any[] {
     const [x, z] = SITE_COORDS[siteId]!;
-    const target = new THREE.Vector3(x, 0.55, z);
-    if (z < 0)
-      return [
-        CAMP.clone(),
-        new THREE.Vector3(x < 0 ? -5.6 : 5.6, 0.55, 3.1),
-        new THREE.Vector3(x < 0 ? -5.6 : 5.6, 0.55, -3.1),
-        target,
-      ];
-    return [CAMP.clone(), new THREE.Vector3(x * 0.5 + 3, 0.55, 9.2), target];
+    const center = new THREE.Vector3(x, 0.55, z);
+    const road =
+      z < 0
+        ? [
+            CAMP.clone(),
+            new THREE.Vector3(x < 0 ? -5.6 : 5.6, 0.55, 3.1),
+            new THREE.Vector3(x < 0 ? -5.6 : 5.6, 0.55, -3.1),
+          ]
+        : [CAMP.clone(), new THREE.Vector3(x * 0.5 + 3, 0.55, 9.2)];
+
+    const approach = road[road.length - 1]!;
+    const forward = center.clone().sub(approach).setY(0).normalize();
+    const side = new THREE.Vector3(-forward.z, 0, forward.x);
+    const post = center
+      .clone()
+      .addScaledVector(forward, -(STANDOFF + row))
+      .addScaledVector(side, lane);
+    post.y = 0.55;
+    return [...road, post];
   }
 
   /** Estado por quadro: bandeira na cor da guilda e brilho do acampamento. */

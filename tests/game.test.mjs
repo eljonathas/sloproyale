@@ -67,7 +67,7 @@ test('contexto e seis agentes limitam ações sem aceitar pontos ou time enviado
  assert.equal(f.team.score,0);assert.throws(()=>f.play('reviewer',2),/Construa/);
 });
 test('harness bloqueia entrega não revisada; sem harness a entrega vale apenas 40',()=>{
- const f=fixture();f.play('harness');f.play('builder');f.wait(BUILD);const energy=f.team.energy;f.deliver();assert.equal(f.team.score,0);assert.equal(f.team.sites[0].level,0);assert.equal(f.team.stats.blocked,1);assert.equal(f.team.energy,energy);f.play('reviewer');f.wait(REVIEW);f.deliver();assert.equal(f.team.score,100);
+ const f=fixture();f.play('harness');f.play('builder');f.wait(BUILD);const energy=f.team.energy;f.deliver();assert.equal(f.team.score,0);assert.equal(f.team.sites[0].level,0);assert.equal(f.team.stats.blocked,1);assert.equal(f.team.energy,energy);f.play('reviewer');f.wait(REVIEW);f.deliver();assert.equal(f.team.score,Math.round(STORY.scoreSafe*(1+STORY.harnessBonus[0])),'a frente protegida entrega com multiplicador');
  const g=fixture();g.play('builder');g.wait(BUILD);g.deliver();assert.equal(g.team.score,40);assert.equal(g.team.stats.unsafe,1);
 });
 test('tempestades têm o mesmo horário; harness protege e worktree não é sandbox',()=>{
@@ -82,7 +82,7 @@ test('ticks atrasados preservam a ordem: tempestade antes da revisão é corrigi
 test('prazo encerra partida, impede ação tardia e reconhece empate sem pontos fictícios',()=>{
  const f=fixture();f.jump(181);assert.throws(()=>f.play('builder'),/terminou/);assert.equal(f.room.phase,'finished');assert.deepEqual(f.arena.snapshot(f.room,'').winners,[0,1]);assert.ok(f.room.teams.every(t=>t.score===0));
 });
-test('uma campanha completa reconstrói nove níveis e termina com 900 pontos',()=>{
+test('uma campanha completa reconstrói nove níveis e paga o multiplicador de cada nível',()=>{
  // A campanha usa a mecânica nova: um canteiro por frente e dois Construtores
  // em paralelo, pagando a integração na revisão.
  const f=fixture({practice:true,duration:420});
@@ -92,7 +92,8 @@ test('uma campanha completa reconstrói nove níveis e termina com 900 pontos',(
    f.play('builder',site);f.play('builder',site);f.wait(BUILD/2);
    f.play('reviewer',site);f.wait(REVIEW+INTEGRATE);f.deliver(site);
   }
- assert.equal(f.room.phase,'finished');assert.equal(f.team.score,900);assert.equal(f.team.stats.safe,9);assert.ok(f.team.sites.every(s=>s.level===3));assert.deepEqual(f.arena.snapshot(f.room,'').winners,[0]);
+ assert.equal(f.room.phase,'finished');// Harness + dois canteiros em todos os níveis: 1,6x, 1,9x e 2,3x por frente.
+ assert.equal(f.team.score,3*(160+190+230));assert.equal(f.team.stats.safe,9);assert.equal(f.team.stats.combos,9);assert.ok(f.team.sites.every(s=>s.level===3));assert.deepEqual(f.arena.snapshot(f.room,'').winners,[0]);
 });
 test('HTTP: estado ao vivo, recursos locais e regras não expostas como arquivos',async t=>{
  const {server}=createServer();await new Promise(r=>server.listen(0,'127.0.0.1',r));t.after(()=>{server.closeAllConnections();server.close();});const base=`http://127.0.0.1:${server.address().port}`;
@@ -141,15 +142,71 @@ test('acerto acelera o agente e soma bônus; erro explica e não pontua',()=>{
  assert.match(g.team.log[0].title,new RegExp(quiz.topic));assert.equal(g.team.log[0].body,quiz.why);
 });
 
-test('só quem enviou o agente responde, uma única vez, enquanto a tarefa existe',()=>{
+test('só quem enviou o agente responde, uma única vez, enquanto a janela da pergunta durar',()=>{
  const f=fixture();f.play('builder',0,f.players[0]);const job=f.team.jobs[0],asked=f.ask(job);
  assert.throws(()=>f.answer(job.id,asked.answer,f.players[2]),/quem enviou/);
  assert.throws(()=>f.answer(job.id,7),/alternativa/);
  f.answer(job.id,asked.answer);
  assert.throws(()=>f.answer(job.id,asked.answer),/já respondeu/);
  assert.equal(f.team.score,STUDY.bonus,'a segunda tentativa não pode somar de novo');
- const g=fixture();g.play('builder');const gone=g.team.jobs[0].id;g.wait(BUILD);
+ const g=fixture();g.play('builder');const gone=g.team.jobs[0].id;g.wait(STUDY.windowSeconds+1);
  assert.throws(()=>g.answer(gone,0),/expirou/);
+});
+
+// A janela de leitura é da pergunta, não da tarefa: uma revisão de 8 s não pode
+// decidir quanto tempo alguém tem para ler o enunciado e as três alternativas.
+test('a pergunta sobrevive ao agente e continua valendo pontos, sem acelerar nada',()=>{
+ const f=fixture();
+ f.play('builder',0);
+ const job=f.team.jobs[0];
+ assert.equal(job.questionExpiresAt,f.room.elapsed+STUDY.windowSeconds);
+ f.wait(BUILD);
+ assert.equal(f.team.jobs.length,0,'o agente voltou');
+ assert.equal(f.team.quizzes.length,1,'a pergunta continua aberta');
+ const antes=f.team.sites[0].built;
+ f.answer(job.id,f.ask(job).answer);
+ assert.equal(f.team.score,STUDY.bonus,'ainda paga os pontos');
+ assert.equal(f.team.sites[0].studyBonus,STUDY.bonus,'e ainda conta para o multiplicador');
+ assert.equal(f.team.sites[0].built,antes,'mas não há obra para adiantar');
+ assert.equal(f.team.quizzes.length,0,'respondida, sai da espera');
+ assert.match(f.team.log[0].body,/já tinha voltado/);
+});
+
+test('a janela da pergunta não depende de quantos Construtores dividem a obra',()=>{
+ // Três Construtores fecham a obra em 8 s; a pergunta continua com 25 s.
+ const f=fixture();
+ f.play('worktree',0);f.play('worktree',0);
+ f.team.energy=STORY.maxEnergy;
+ f.play('builder',0);f.play('builder',0);f.play('builder',0);
+ const ids=f.team.jobs.map(j=>j.id);
+ f.wait(BUILD/3);
+ assert.equal(f.team.sites[0].built,100,'a obra fecha em um terço do tempo');
+ assert.equal(f.team.jobs.length,0);
+ assert.equal(f.team.quizzes.length,3,'as três perguntas seguem abertas');
+ // Todas ainda respondíveis muito depois do fim da obra.
+ f.wait(STUDY.windowSeconds-BUILD/3-1);
+ for(const id of ids){const j=f.team.quizOf(id);f.answer(id,f.ask(j).answer);}
+ assert.equal(f.team.score,3*STUDY.bonus);
+ // E fecham juntas quando a janela vence.
+ const g=fixture();g.play('builder',0);const perdida=g.team.jobs[0].id;
+ g.wait(STUDY.windowSeconds-1);
+ assert.equal(g.team.quizzes.length,1,'ainda aberta um segundo antes');
+ g.wait(2);
+ assert.equal(g.team.quizzes.length,0,'a janela fecha sozinha');
+ assert.throws(()=>g.answer(perdida,0),/expirou/);
+ assert.equal(g.team.score,0);
+});
+
+test('a pausa não consome a janela da pergunta',()=>{
+ const f=fixture();f.play('builder',0);
+ const job=f.team.jobs[0];
+ f.wait(4);
+ f.arena.action(f.room,f.room.admin,'pause');
+ f.wait(600);
+ f.arena.action(f.room,f.room.admin,'pause');
+ assert.equal(f.team.quizOf(job.id)?.id,job.id,'a pergunta atravessa a pausa');
+ f.answer(job.id,f.ask(job).answer);
+ assert.equal(f.team.score,STUDY.bonus);
 });
 
 test('cada guilda recebe as perguntas numa ordem própria e sem repetir no ciclo',()=>{
@@ -204,4 +261,80 @@ test('uma barra permite seis Construtores isolados e chega a zero sem alterar a 
  assert.equal(f.team.jobs.length,0);assert.ok(f.team.sites.every(site=>site.ready));
  for(const site of f.team.sites)f.play('reviewer',site.id);
  assert.equal(f.team.jobs.length,3,'há contexto para iniciar as revisões depois da primeira onda');
+});
+
+// O multiplicador é o que separa quem combinou as jogadas de quem só empurrou
+// cartas. Ele precisa crescer com o nível, somar o paralelismo limpo e sumir
+// inteiro quando houve conflito de checkout — inclusive na frente do rival.
+test('o multiplicador da frente cresce com o nível e soma o paralelismo limpo',()=>{
+ const casos=[
+  {nivel:0,harness:false,paralelo:false,esperado:1},
+  {nivel:0,harness:true, paralelo:false,esperado:1.3},
+  {nivel:1,harness:true, paralelo:false,esperado:1.6},
+  {nivel:2,harness:true, paralelo:false,esperado:2},
+  {nivel:0,harness:false,paralelo:true, esperado:1.3},
+  {nivel:2,harness:true, paralelo:true, esperado:2.3},
+ ];
+ for(const {nivel,harness,paralelo,esperado} of casos){
+  const f=fixture();const site=f.team.sites[0];
+  site.level=nivel;site.harness=harness;site.contributors=paralelo?2:1;
+  assert.ok(Math.abs(site.multiplier()-esperado)<1e-9,`nível ${nivel+1}, harness ${harness}, paralelo ${paralelo}: ${site.multiplier()} != ${esperado}`);
+  site.built=100;site.reviewed=true;
+  assert.equal(site.reward(),Math.round(STORY.scoreSafe*esperado));
+  f.team.energy=STORY.maxEnergy;
+  f.deliver(0);
+  assert.equal(f.team.score,Math.round(STORY.scoreSafe*esperado));
+  assert.equal(f.team.stats.combos,esperado>1?1:0);
+  assert.equal(site.conflicted,false,'a entrega limpa o registro do nível');
+  assert.equal(site.studyBonus,0);
+ }
+});
+
+test('conflito de checkout zera o multiplicador do nível nas duas frentes, mesmo depois da revisão',()=>{
+ const f=fixture();
+ f.play('harness',0);f.play('harness',1);
+ f.play('builder',0);f.play('builder',1);
+ assert.ok(f.team.jobs.every(j=>j.conflict),'sem canteiro os dois dividem o checkout principal');
+ assert.ok(f.team.sites[0].conflicted&&f.team.sites[1].conflicted,'as duas frentes ficam marcadas');
+ // Isolar depois encerra o conflito, mas não desfaz o retrabalho já pago.
+ f.play('worktree',0);
+ assert.ok(f.team.jobs.every(j=>!j.conflict));
+ assert.equal(f.team.sites[0].conflicted,true,'o registro do nível sobrevive ao resgate');
+ f.wait(BUILD*2);
+ f.team.energy=STORY.maxEnergy;f.play('reviewer',0);f.wait(f.team.sites[0].reviewDuration());
+ assert.equal(f.team.sites[0].faults,0,'a revisão limpa as falhas');
+ assert.equal(f.team.sites[0].multiplier(),1,'mas não devolve o multiplicador');
+ f.deliver(0);
+ assert.equal(f.team.score,STORY.scoreSafe,'entrega sem multiplicador');
+ assert.equal(f.team.stats.combos,0);
+ // O nível seguinte começa limpo: o erro custa aquele nível, não a partida.
+ assert.equal(f.team.sites[0].conflicted,false);
+ assert.equal(f.team.sites[0].multiplier(),1+STORY.harnessBonus[1]);
+});
+
+test('o bônus de estudo é pago na hora e multiplicado de novo na entrega',()=>{
+ const f=fixture();const site=f.team.sites[0];
+ site.harness=true;site.level=2;// multiplicador 2x
+ f.play('builder',0);
+ const job=f.team.jobs[0];
+ f.answer(job.id,f.ask(job).answer);
+ assert.equal(f.team.score,STUDY.bonus,'o acerto continua pagando na hora');
+ assert.equal(site.studyBonus,STUDY.bonus);
+ f.wait(BUILD);
+ f.team.energy=STORY.maxEnergy;f.play('reviewer',0);f.wait(site.reviewDuration());
+ const antes=f.team.score;
+ f.deliver(0);
+ // 100 x 2 mais a parte que o multiplicador acrescenta ao bônus já creditado.
+ assert.equal(f.team.score-antes,STORY.scoreSafe*2+STUDY.bonus);
+ assert.equal(f.team.score,STUDY.bonus+STORY.scoreSafe*2+STUDY.bonus,'240 na conta da entrega perfeita do nível 3');
+});
+
+test('errar a pergunta não acumula bônus para a entrega multiplicar',()=>{
+ const f=fixture();const site=f.team.sites[0];
+ site.harness=true;site.level=2;
+ f.play('builder',0);
+ const job=f.team.jobs[0],q=f.ask(job);
+ f.answer(job.id,(q.answer+1)%q.options.length);
+ assert.equal(site.studyBonus,0);
+ assert.equal(f.team.score,0);
 });

@@ -20,6 +20,8 @@ export class Site {
   worktrees = 0;
   harness = false;
   contributors = 0;
+  conflicted = false;
+  studyBonus = 0;
 
   constructor(private readonly blueprint: SiteBlueprint) {}
 
@@ -44,6 +46,45 @@ export class Site {
   /** Uma entrega revisada e sem falhas vale a pontuação cheia. */
   get safe(): boolean {
     return this.reviewed && this.faults === 0;
+  }
+
+  /** Dois ou mais Construtores neste nível, cada um no seu diretório. */
+  get parallel(): boolean {
+    return this.contributors > 1 && !this.conflicted;
+  }
+
+  /**
+   * O multiplicador desta entrega.
+   *
+   * É aqui que a combinação de jogadas vira placar: proteger a frente e
+   * paralelizar sem disputar diretório multiplicam a entrega inteira. Um
+   * conflito de checkout no nível derruba tudo para 1 — o retrabalho apaga o
+   * valor da disciplina, mesmo que a revisão limpe as falhas depois.
+   */
+  multiplier(): number {
+    if (this.conflicted) return 1;
+    const level = Math.min(this.level, STORY.harnessBonus.length - 1);
+    return (
+      1 +
+      (this.harness ? STORY.harnessBonus[level]! : 0) +
+      (this.parallel ? STORY.parallelBonus : 0)
+    );
+  }
+
+  /**
+   * Os pontos desta entrega. O bônus de estudo já foi creditado quando a
+   * pessoa acertou; aqui entra só a parte que o multiplicador acrescenta a ele,
+   * para que responder certo continue pagando na hora e pagar mais no fim.
+   */
+  reward(): number {
+    const multiplier = this.multiplier();
+    const base = this.safe ? STORY.scoreSafe : STORY.scoreUnsafe;
+    return Math.round(base * multiplier + this.studyBonus * (multiplier - 1));
+  }
+
+  /** Registra o conflito de checkout deste nível. */
+  taint(): void {
+    this.conflicted = true;
   }
 
   /** Ainda cabe abrir outro canteiro isolado nesta frente. */
@@ -87,6 +128,8 @@ export class Site {
     this.reviewed = false;
     this.faults = 0;
     this.contributors = 0;
+    this.conflicted = false;
+    this.studyBonus = 0;
   }
 
   view(): SiteView {
@@ -102,6 +145,8 @@ export class Site {
       worktrees: this.worktrees,
       harness: this.harness,
       contributors: this.contributors,
+      conflicted: this.conflicted,
+      studyBonus: this.studyBonus,
     };
   }
 }

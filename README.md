@@ -21,29 +21,47 @@ Modelos, texturas, fontes e Three.js estão no projeto. Não há chamadas para C
 
 ## Como se joga
 
-A arena tem três frentes — **Portal**, **Forja** e **Muralha** — e cada uma sobe até o nível 3. Vence a guilda com mais pontos quando o tempo acaba. As entregas valem até 900; as respostas certas somam por cima.
+A arena tem três frentes — **Portal**, **Forja** e **Muralha** — e cada uma sobe até o nível 3. Vence a guilda com mais pontos quando o tempo acaba. Uma campanha jogada de qualquer jeito vale cerca de **1200**; combinando as jogadas certas, passa de **2700**. É essa distância que separa a guilda que entendeu a apresentação da que só empurrou cartas.
 
 Toda guilda dispõe de **12 de contexto** (regenera 0,65/s) e **até 6 agentes em campo**, independentemente de quantas pessoas ela tenha. Esse é o ponto da dinâmica: o orçamento é do time, não da pessoa. Quem gasta sem combinar tira contexto do colega.
 
 | Carta | Custo | Efeito |
 | --- | --- | --- |
 | Construtor | 2 / 3 / 4 | Custo por nível a construir (1 / 2 / 3). Sozinho leva 24 s. |
-| Worktree | 2 | Abre um canteiro isolado na frente. Até 2 por frente, permanentes. |
+| Worktree | 2 | Abre um canteiro isolado na frente. Até 2 por frente, permanentes. Dois Construtores em canteiros próprios somam **+0,3** ao multiplicador da entrega. |
 | Revisor | 2 / 3 / 4 | Custo por nível a entregar (1 / 2 / 3). Valida em 8 s, +3 s por falha, +5 s por frente extra. |
-| Harness | 2 | Barra entrega sem revisão e comandos do caos naquela frente. |
+| Harness | 2 | Barra entrega sem revisão e comandos do caos naquela frente. Multiplica a entrega em **+0,3 / +0,6 / +1,0** conforme o nível, e aponta a próxima carta certa na placa. |
 
 O preço é cobrado uma vez ao enviar a carta, conforme o nível que a frente está construindo. Avançar o progresso ou acertar a pergunta não aumenta esse preço nem cobra contexto adicional. As cartas mostram a faixa de preços das frentes disponíveis; ao mirar, a carta e a placa mostram o preço exato.
 
 O ciclo é construir → revisar → entregar. Entrega revisada e sem falhas vale **100 pontos**; entrega sem revisão vale **40**. Se a frente tem Harness, a entrega sem revisão é bloqueada em vez de pontuar 40 — o bloqueio não consome contexto.
 
-**Estudo em campo.** Todo Construtor ou Revisor abre uma pergunta sobre o conteúdo da apresentação para quem enviou o agente — 39 perguntas em `src/content/questions.ts`, embaralhadas por guilda, cobrindo os três blocos do deck: conceitos (harness, workflows, multiagente), configuração (worktrees, subagentes, permissões, AGENTS.md, ADR) e o case do BuscaGames (arquitetura, incidente, contratos operacionais e checklist). Acertar corta **metade do tempo que falta** na tarefa e soma **20 pontos**; errar não tira nada e revela a explicação. A pergunta vale enquanto o agente trabalha: responder cedo economiza mais. A janela ocupa o lugar do baralho, mas o botão **Baralho** devolve as cartas sem encerrar a pergunta, para que o time não perca o paralelismo entre frentes.
+**O multiplicador da frente.** É aqui que combinar jogadas vira placar, em vez de só economizar segundos. Na entrega, a frente multiplica o que pagou:
 
-Isso existe porque, sem ele, bastava alocar agentes depressa para pontuar. Com ele, a guilda que entende worktree, harness e ADR constrói mais rápido e pontua mais. As 18 tarefas de uma campanha completa abrem 18 perguntas: até 360 pontos de estudo sobre os 900 das entregas. Como o banco tem 39 e a ordem é sorteada por guilda, cada time vê um recorte diferente — nenhum consegue copiar a resposta do vizinho, e a mesma turma pode jogar de novo sem repetir.
+| Situação da frente | Soma ao multiplicador |
+| --- | --- |
+| Harness ativo, entregando o nível 1 | +0,3 |
+| Harness ativo, entregando o nível 2 | +0,6 |
+| Harness ativo, entregando o nível 3 | +1,0 |
+| Dois ou mais Construtores, cada um no seu canteiro | +0,3 |
+| **Houve conflito de checkout neste nível** | **zera tudo: a entrega sai em 1×** |
+
+Uma frente protegida desde o começo e construída em canteiros próprios entrega o nível 3 a **2,3×**: 230 pontos em vez de 100. A mesma frente, com um conflito no meio do caminho, paga 100 — e a revisão limpa as falhas, mas não devolve o multiplicador. O erro custa a recompensa daquele nível, nunca pontos já conquistados: o nível seguinte começa limpo.
+
+O bônus da pergunta é pago duas vezes: **20 pontos na hora do acerto** e, na entrega, mais a parte que o multiplicador acrescenta. Acertar numa frente a 2× vale 40 no total. Quem estudou e organizou a operação ganha nas duas pontas.
+
+**O Harness como painel de controle.** Numa frente protegida a placa diz qual é a próxima carta certa — *isolar antes de somar Construtores*, *revisar antes de entregar*. É a leitura literal do slide: o harness é quem conhece a operação e aplica a regra. Quem pagou pela proteção joga com o mapa à vista; quem não pagou decide no escuro.
+
+**Estudo em campo.** Todo Construtor ou Revisor abre uma pergunta sobre o conteúdo da apresentação para quem enviou o agente — 39 perguntas em `src/content/questions.ts`, embaralhadas por guilda, cobrindo os três blocos do deck: conceitos (harness, workflows, multiagente), configuração (worktrees, subagentes, permissões, AGENTS.md, ADR) e o case do BuscaGames (arquitetura, incidente, contratos operacionais e checklist). Acertar corta **metade do tempo que falta** na tarefa e soma **20 pontos**; errar não tira nada e revela a explicação. **A pergunta tem relógio próprio: 25 s, contados de quando ela abre.** Ela não morre com a tarefa — um Revisor leva 8 s e três Construtores em canteiros fecham a obra em 8 s, e ninguém lê enunciado e três alternativas nesse tempo. Enquanto o agente ainda trabalha, acertar acelera a obra; depois que ele volta, o acerto ainda vale os 20 pontos e o multiplicador, mas não há mais o que adiantar. Responder cedo continua compensando, sem que ler até o fim seja impossível.
+
+A janela ocupa o lugar do baralho enquanto o agente trabalha e se recolhe sozinha para uma chamada compacta quando ele volta, liberando as cartas. O botão **Baralho** faz o mesmo a qualquer momento, sem encerrar a pergunta.
+
+Isso existe porque, sem ele, bastava alocar agentes depressa para pontuar. Com ele, a guilda que entende worktree, harness e ADR constrói mais rápido e pontua mais. Uma campanha completa abre uma pergunta por agente enviado — quem paraleliza responde mais, e cada acerto vale mais na frente multiplicada. Como o banco tem 39 e a ordem é sorteada por guilda, cada time vê um recorte diferente — nenhum consegue copiar a resposta do vizinho, e a mesma turma pode jogar de novo sem repetir.
 
 **Frentes paralelas e o checkout compartilhado.** Isolamento é por diretório, não por frente — é assim que worktree funciona no repositório. A guilda tem **um** checkout principal e cada Worktree abre mais um canteiro naquela frente. Um Construtor ocupa um canteiro livre; se não houver, cai no checkout principal.
 
 - Cada Construtor isolado soma uma frente de trabalho: **1 leva 24 s, 2 levam 12 s, 3 levam 8 s** na mesma obra.
-- Dois agentes no mesmo diretório **rendem metade cada** e ganham falhas — juntos produzem o de um só, gastando o dobro de contexto.
+- Dois agentes no mesmo diretório **rendem metade cada**, ganham falhas e **zeram o multiplicador da entrega** — juntos produzem o de um só, gastando o dobro de contexto. Medido: 24,5 s de obra nos dois casos, 4 de contexto em vez de 2, e a revisão sobe de 8 s para 19 s.
 - Abrir uma Worktree durante um conflito **tira um agente do diretório compartilhado e encerra o conflito**, como aconteceria de verdade.
 
 O preço é a convergência: cada frente extra soma **5 s de integração** na revisão, e o custo dos agentes cresce com o nível. Seis Construtores no nível 1 gastam os 12 de uma barra inteira; no nível 3, só três já gastam esses 12. Os canteiros são pagos à parte. Paralelismo compra latência pagando coordenação e tokens, que é o ponto do slide sobre custo.
@@ -87,7 +105,7 @@ build vai para `dist/`, que é ignorado pelo Git. Para editar:
 npm install     # só na primeira vez
 npm run build   # compila src/ para dist/
 npm run check   # tipos, sem gerar arquivos
-npm test        # compila e roda os 30 testes
+npm test        # compila e roda os 41 testes
 ```
 
 ```
@@ -127,7 +145,7 @@ Salas e placares ficam na memória do servidor. Recarregar a página preserva o 
 npm test
 ```
 
-Trinta testes cobrem regras, limite e equilíbrio das guildas, autorização do admin, proteção dos parâmetros, relógio, pausa, conflito de checkout, frentes paralelas e o custo de integração, campanha completa, HTTP, stream de eventos, ações reais do cliente contra o servidor a concordância entre a prévia da carta e a decisão do servidor em 36 combinações, e o estudo em campo: o gabarito que não sai do servidor, o bônus e a aceleração do acerto, a explicação no erro, quem pode responder e a ordem das perguntas por guilda.
+Quarenta e um testes cobrem regras, limite e equilíbrio das guildas, autorização do admin, proteção dos parâmetros, relógio, pausa, conflito de checkout, frentes paralelas e o custo de integração, campanha completa, HTTP, stream de eventos, ações reais do cliente contra o servidor a concordância entre a prévia da carta e a decisão do servidor em 36 combinações, o multiplicador da frente em 48 combinações de placa contra servidor, o conflito que zera o bônus, a ordem que o Harness recomenda, a janela da pergunta que sobrevive ao agente e não encolhe com o paralelismo, e o estudo em campo: o gabarito que não sai do servidor, o bônus e a aceleração do acerto, a explicação no erro, quem pode responder e a ordem das perguntas por guilda.
 
 As telas foram conferidas em navegador real, em tamanho de computador e de celular: mapa, prévia das cartas, ciclo de vida dos agentes, worktree, harness, a visão de uma guilda com duas pessoas os dois desfechos da pergunta com o efeito de aceleração na barra da obra, e dois Construtores dividindo a mesma obra.
 

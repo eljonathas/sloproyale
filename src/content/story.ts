@@ -19,6 +19,8 @@ export const STORY: StoryView = {
   regen: 0.65,
   scoreSafe: 100,
   scoreUnsafe: 40,
+  harnessBonus: [0.3, 0.6, 1],
+  parallelBonus: 0.3,
 };
 
 /**
@@ -28,7 +30,8 @@ export const STORY: StoryView = {
 export const STUDY: StudyView = {
   bonus: 20,
   speedup: 0.5,
-  revealSeconds: 4.5,
+  revealSeconds: 9,
+  windowSeconds: 25,
 };
 
 /** Coordenadas das frentes no tabuleiro, compartilhadas com a cena 3D. */

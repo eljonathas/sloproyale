@@ -1,4 +1,5 @@
 import type { CardId, JobView, QuestionView } from "../shared/protocol.js";
+import { STUDY } from "../content/story.js";
 import { findQuestion } from "../content/questions.js";
 
 /** O diretório de trabalho que um Construtor ocupa. */
@@ -49,6 +50,19 @@ export class Job {
     return this.cardId === "reviewer";
   }
 
+  /**
+   * Quando a pergunta fecha. Ela abre com a tarefa, mas tem o próprio relógio:
+   * ler o enunciado não pode depender de quantos Construtores dividem a obra.
+   */
+  get questionExpiresAt(): number {
+    return this.startedAt + STUDY.windowSeconds;
+  }
+
+  /** A pergunta ainda aceita resposta neste instante da partida. */
+  open(elapsed: number): boolean {
+    return !this.answered && elapsed < this.questionExpiresAt;
+  }
+
   /** Quanto falta para a tarefa terminar, no relógio da partida. */
   remaining(elapsed: number): number {
     return Math.max(0, this.endsAt - elapsed);
@@ -73,6 +87,7 @@ export class Job {
       correct: this.answered ? this.answered.correct : null,
       answer: done ? question.answer : null,
       why: done ? question.why : null,
+      expiresAt: this.questionExpiresAt,
     };
   }
 

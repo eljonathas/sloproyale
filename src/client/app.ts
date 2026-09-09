@@ -66,7 +66,7 @@ export class AgentArena {
     teamSize: 6,
     duration: 180,
   };
-  teamSelection = 0;
+  teamSelection = -1;
   rosterPage = 0;
   sound = false;
   private audio: AudioContext | null = null;
