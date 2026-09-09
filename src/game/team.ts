@@ -12,9 +12,6 @@ import { Site } from "./site.js";
 /** Quantas entradas o diário guarda. */
 const LOG_SIZE = 12;
 
-/** Quantos agentes uma guilda mantém em campo ao mesmo tempo. */
-export const MAX_AGENTS = 3;
-
 /** A identidade visual de uma guilda. */
 export interface TeamStyle {
   readonly name: string;
@@ -36,7 +33,7 @@ export const TEAM_STYLES: readonly TeamStyle[] = [
 /**
  * Uma guilda.
  *
- * O contexto e os três agentes são do time inteiro, não da pessoa: é esse
+ * O contexto e o limite de agentes são do time inteiro, não da pessoa: é esse
  * compartilhamento que obriga a turma a combinar as frentes. A guilda também
  * guarda a própria ordem de perguntas, para que times vizinhos não copiem a
  * resposta um do outro.
@@ -91,8 +88,7 @@ export class Team {
     if (site.complete || site.ready) return 0;
     const perAgent = 100 / STORY.buildSeconds;
     return this.buildersAt(site.id).reduce(
-      (rate, job) =>
-        rate + perAgent * (job.conflict ? STORY.conflictRate : 1),
+      (rate, job) => rate + perAgent * (job.conflict ? STORY.conflictRate : 1),
       0,
     );
   }

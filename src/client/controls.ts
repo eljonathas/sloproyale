@@ -15,6 +15,10 @@ export interface Control {
   readonly y: number;
   readonly w: number;
   readonly h: number;
+  /** Rotação visual em torno do centro, em radianos. */
+  readonly rotation: number;
+  /** Ordem de teclado independente da sobreposição visual. */
+  readonly navigationOrder: number;
   /** Texto lido por tecnologias assistivas e usado pelos testes. */
   readonly label: string;
   readonly disabled: boolean;
@@ -89,38 +93,57 @@ export class ControlRegistry {
     label: string,
     run: () => unknown,
     disabled = false,
+    rotation = 0,
+    navigationOrder = this.controls.length,
   ): void {
-    this.controls.push({ id, x, y, w, h, label, disabled, run });
+    this.controls.push({
+      id,
+      x,
+      y,
+      w,
+      h,
+      label,
+      disabled,
+      run,
+      rotation,
+      navigationOrder,
+    });
     if ((this.focus === id || this.hover === id) && !disabled) {
-      this.painter.path(x - 3, y - 3, w + 6, h + 6, 13);
+      this.painter.save();
+      this.painter.ctx.translate(x + w / 2, y + h / 2);
+      this.painter.ctx.rotate(rotation);
+      this.painter.path(-w / 2 - 3, -h / 2 - 3, w + 6, h + 6, 13);
       this.painter.ctx.strokeStyle =
         this.focus === id ? "#fff4c6" : "#ffe3a6aa";
       this.painter.ctx.lineWidth = 2;
       this.painter.ctx.stroke();
+      this.painter.restore();
     }
   }
 
   /** Qual controle está sob um ponto, respeitando a ordem de desenho. */
   at(point: { x: number; y: number }): Control | undefined {
-    return [...this.controls]
-      .reverse()
-      .find(
-        (control) =>
-          !control.disabled &&
-          point.x >= control.x &&
-          point.x <= control.x + control.w &&
-          point.y >= control.y &&
-          point.y <= control.y + control.h,
+    return [...this.controls].reverse().find((control) => {
+      const dx = point.x - control.x - control.w / 2;
+      const dy = point.y - control.y - control.h / 2;
+      const cos = Math.cos(control.rotation);
+      const sin = Math.sin(control.rotation);
+      return (
+        !control.disabled &&
+        Math.abs(dx * cos + dy * sin) <= control.w / 2 &&
+        Math.abs(dy * cos - dx * sin) <= control.h / 2
       );
+    });
   }
 
   /** Move o foco do teclado para o próximo controle habilitado. */
   step(direction: 1 | -1): void {
-    const enabled = this.controls.filter((control) => !control.disabled);
+    const enabled = this.controls
+      .filter((control) => !control.disabled)
+      .sort((a, b) => a.navigationOrder - b.navigationOrder);
     if (!enabled.length) return;
     const current = enabled.findIndex((control) => control.id === this.focus);
-    const next =
-      (current + direction + enabled.length) % enabled.length;
+    const next = (current + direction + enabled.length) % enabled.length;
     const target = enabled[next]!;
     this.focus = target.id;
     this.announcer.textContent = target.label;
@@ -135,13 +158,16 @@ export class ControlRegistry {
    * o leitor de tela recomeçaria a leitura a cada quadro.
    */
   syncAccessibility(): void {
-    const signature = this.controls
+    const ordered = [...this.controls].sort(
+      (a, b) => a.navigationOrder - b.navigationOrder,
+    );
+    const signature = ordered
       .map((control) => `${control.id}:${control.label}:${control.disabled}`)
       .join("|");
     if (signature === this.signature) return;
     this.signature = signature;
     this.mirror.replaceChildren(
-      ...this.controls.map((control) => {
+      ...ordered.map((control) => {
         const button = document.createElement("button");
         button.textContent = control.label;
         button.tabIndex = -1;
@@ -166,7 +192,12 @@ export class ControlRegistry {
     run: () => unknown,
     options: ButtonOptions = {},
   ): void {
-    const { kind = "gold", disabled = false, small = false, icon = null } = options;
+    const {
+      kind = "gold",
+      disabled = false,
+      small = false,
+      icon = null,
+    } = options;
     const ctx = this.painter.ctx;
     ctx.save();
     if (disabled) ctx.globalAlpha = 0.42;
@@ -223,10 +254,10 @@ export class ControlRegistry {
       markedAt = 0,
     } = options;
     const ctx = this.painter.ctx;
-    const active = (this.hover === id || this.focus === id) && !disabled && !mark;
+    const active =
+      (this.hover === id || this.focus === id) && !disabled && !mark;
     const lift = active ? -2 : 0;
-    const palette =
-      CHOICE_PALETTES[mark ?? (disabled ? "faded" : "idle")];
+    const palette = CHOICE_PALETTES[mark ?? (disabled ? "faded" : "idle")];
 
     ctx.save();
     ctx.translate(shake, lift);
@@ -238,7 +269,15 @@ export class ControlRegistry {
     // número, senão um "×" nelas leria como se tivessem sido respondidas.
     const marked = mark === "correct" || mark === "wrong";
     if (!marked) {
-      this.painter.rect(x + 12, y + h / 2 - 13, 26, 26, "#0d1f3199", 8, "#ffffff26");
+      this.painter.rect(
+        x + 12,
+        y + h / 2 - 13,
+        26,
+        26,
+        "#0d1f3199",
+        8,
+        "#ffffff26",
+      );
       this.painter.text(
         String(index + 1),
         x + 25,
@@ -250,15 +289,43 @@ export class ControlRegistry {
       );
     } else {
       // O pop do ícone marca o instante da correção, sem trocar o layout.
-      const pop = Math.max(0, Math.min(1, (this.painter.time - markedAt) / 260));
+      const pop = Math.max(
+        0,
+        Math.min(1, (this.painter.time - markedAt) / 260),
+      );
       ctx.save();
       ctx.translate(x + 25, y + h / 2);
       ctx.scale(0.4 + 0.6 * pop, 0.4 + 0.6 * pop);
-      drawIcon(ctx, mark === "correct" ? "check" : "cross", 0, 0, 26, palette[4]);
+      drawIcon(
+        ctx,
+        mark === "correct" ? "check" : "cross",
+        0,
+        0,
+        26,
+        palette[4],
+      );
       ctx.restore();
     }
-    this.painter.wrap(label, x + 48, y + h / 2, w - 62, size, palette[4], 17, 2);
+    this.painter.wrap(
+      label,
+      x + 48,
+      y + h / 2,
+      w - 62,
+      size,
+      palette[4],
+      17,
+      2,
+    );
     ctx.restore();
-    this.hit(id, x, y, w, h, `Alternativa ${index + 1}: ${label}`, run, disabled);
+    this.hit(
+      id,
+      x,
+      y,
+      w,
+      h,
+      `Alternativa ${index + 1}: ${label}`,
+      run,
+      disabled,
+    );
   }
 }

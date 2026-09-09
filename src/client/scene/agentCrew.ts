@@ -40,7 +40,11 @@ class Agent {
     const clip =
       this.clips.find((candidate) => candidate.name === name) ??
       this.clips.find((candidate) => candidate.name === "Idle");
-    if (clip) this.mixer.clipAction(clip).play();
+    if (clip) {
+      this.mixer.clipAction(clip).play();
+      // Aplica a pose inicial mesmo quando a preferência reduz movimento.
+      this.mixer.update(0);
+    }
     this.clipName = name;
   }
 
@@ -78,11 +82,20 @@ class Agent {
     if (!walking && this.grown < 0.06) return false;
 
     this.object.scale.copy(this.baseScale).multiplyScalar(this.grown);
-    if (!walking) heading.negate();
+    if (arrived) {
+      // O posto pode ser lateral. Ao trabalhar, olha para o centro da obra,
+      // não para a direção do último trecho da caminhada.
+      const [x, z] = SITE_COORDS[this.job.siteId]!;
+      heading.set(x - position.x, 0, z - position.z);
+    } else if (!walking) heading.negate();
     this.object.rotation.y = Math.atan2(heading.x, heading.z);
     this.mixer.update(reduced || paused ? 0 : dt);
 
-    this.marker.position.set(this.object.position.x, 0.57, this.object.position.z);
+    this.marker.position.set(
+      this.object.position.x,
+      0.57,
+      this.object.position.z,
+    );
     this.marker.material.color.set(this.job.conflict ? "#ff8067" : teamColor);
     this.marker.material.opacity = 0.95 * this.grown;
     this.marker.scale.setScalar(
@@ -213,7 +226,9 @@ export class AgentCrew {
   }
 
   /** Posições projetadas, para o cliente pendurar os rótulos. */
-  anchors(project: (x: number, y: number, z: number) => { x: number; y: number }): AgentAnchor[] {
+  anchors(
+    project: (x: number, y: number, z: number) => { x: number; y: number },
+  ): AgentAnchor[] {
     return [...this.agents.values()].map((agent) => ({
       id: agent.job.id,
       job: agent.job,

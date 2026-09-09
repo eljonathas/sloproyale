@@ -20,10 +20,10 @@ test('lobby: vagas, nomes, troca e autorização do orquestrador',()=>{
  const arena=new Arena(),room=arena.create({participants:4,teamSize:2});const a=arena.join(room,{name:'Ana',teamId:0});arena.join(room,{name:'Bia',teamId:0});assert.throws(()=>arena.join(room,{name:'Caio',teamId:0}),/cheio/);assert.throws(()=>arena.join(room,{name:'ana',teamId:1}),/já está/);assert.throws(()=>arena.action(room,a.key,'start'),/orquestrador/);assert.throws(()=>arena.action(room,room.admin,'start'),/pelo menos/);arena.join(room,{name:'Ana',teamId:1},a.key);arena.action(room,room.admin,'start');assert.throws(()=>arena.join(room,{name:'Caio',teamId:1}),/já começou/);
 });
 test('construção e revisão levam tempo; só a entrega gera pontos e não pode ser repetida',()=>{
- const f=fixture();f.play('builder');assert.equal(f.team.energy,9);assert.equal(f.team.jobs.length,1);assert.equal(f.team.score,0);f.wait(BUILD-1);assert.ok(f.team.sites[0].built>90&&f.team.sites[0].built<100,'a obra avança continuamente');f.wait(1);assert.equal(f.team.sites[0].built,100);assert.equal(f.team.jobs.length,0);f.play('reviewer');f.wait(REVIEW);assert.equal(f.team.sites[0].reviewed,true);assert.equal(f.team.score,0);f.deliver();assert.equal(f.team.score,100);assert.equal(f.team.sites[0].level,1);assert.throws(()=>f.deliver(),/não terminou/);assert.equal(f.team.score,100);
+ const f=fixture();f.play('builder');assert.equal(f.team.energy,10);assert.equal(f.team.jobs.length,1);assert.equal(f.team.score,0);f.wait(BUILD-1);assert.ok(f.team.sites[0].built>90&&f.team.sites[0].built<100,'a obra avança continuamente');f.wait(1);assert.equal(f.team.sites[0].built,100);assert.equal(f.team.jobs.length,0);f.play('reviewer');f.wait(REVIEW);assert.equal(f.team.sites[0].reviewed,true);assert.equal(f.team.score,0);f.deliver();assert.equal(f.team.score,100);assert.equal(f.team.sites[0].level,1);assert.throws(()=>f.deliver(),/não terminou/);assert.equal(f.team.score,100);
 });
 test('ações de pessoas do mesmo time compartilham orçamento; concorrência no checkout causa conflito real',()=>{
- const f=fixture();f.play('builder',0,f.players[0]);f.play('builder',1,f.players[2]);assert.equal(f.team.energy,6);assert.equal(f.team.jobs.length,2);assert.ok(f.team.jobs.every(j=>j.conflict));f.wait(BUILD);
+ const f=fixture();f.play('builder',0,f.players[0]);f.play('builder',1,f.players[2]);assert.equal(f.team.energy,8);assert.equal(f.team.jobs.length,2);assert.ok(f.team.jobs.every(j=>j.conflict));f.wait(BUILD);
  // Dividindo o mesmo diretório, os dois juntos rendem o de um agente sozinho.
  assert.equal(Math.round(f.team.sites[0].built),50);assert.equal(Math.round(f.team.sites[1].built),50);assert.ok(f.team.stats.conflicts>0);assert.equal(f.room.teams[1].energy,12);
 });
@@ -54,8 +54,17 @@ test('a revisão cobra a convergência das frentes paralelas',()=>{
  f.play('builder',0);f.wait(BUILD);f.play('reviewer',0);
  assert.equal(Math.round(f.team.jobs[0].endsAt-f.room.elapsed),REVIEW,'uma frente só não paga integração');
 });
-test('contexto e três agentes limitam ações sem aceitar pontos ou time enviados pelo cliente',()=>{
- const f=fixture();f.play('builder',0);f.play('builder',0);f.play('builder',0);assert.throws(()=>f.play('builder',1),/3 agentes/);assert.equal(f.team.energy,3);assert.throws(()=>f.arena.action(f.room,'fake','play',{cardId:'builder',siteId:1}),/Entre/);assert.throws(()=>f.arena.action(f.room,f.players[0].key,'finish'),/orquestrador/);assert.equal(f.team.score,0);assert.throws(()=>f.play('reviewer',2),/Construa/);
+test('contexto e seis agentes limitam ações sem aceitar pontos ou time enviados pelo cliente',()=>{
+ const f=fixture();
+ for(let i=0;i<STORY.maxAgents;i++)f.play('builder',i%3);
+ assert.equal(f.team.jobs.length,6);assert.equal(f.team.energy,0);
+ assert.throws(()=>f.play('builder',1),/Contexto insuficiente/);
+ f.wait(2/STORY.regen);
+ assert.throws(()=>f.play('builder',1),/6 agentes/);
+ assert.ok(Math.abs(f.team.energy-2)<1e-8,'recusa não cobra contexto');
+ assert.throws(()=>f.arena.action(f.room,'fake','play',{cardId:'builder',siteId:1}),/Entre/);
+ assert.throws(()=>f.arena.action(f.room,f.players[0].key,'finish'),/orquestrador/);
+ assert.equal(f.team.score,0);assert.throws(()=>f.play('reviewer',2),/Construa/);
 });
 test('harness bloqueia entrega não revisada; sem harness a entrega vale apenas 40',()=>{
  const f=fixture();f.play('harness');f.play('builder');f.wait(BUILD);const energy=f.team.energy;f.deliver();assert.equal(f.team.score,0);assert.equal(f.team.sites[0].level,0);assert.equal(f.team.stats.blocked,1);assert.equal(f.team.energy,energy);f.play('reviewer');f.wait(REVIEW);f.deliver();assert.equal(f.team.score,100);
@@ -148,4 +157,51 @@ test('cada guilda recebe as perguntas numa ordem própria e sem repetir no ciclo
  const seen=[];for(let i=0;i<QUESTIONS.length;i++){f.play('builder',0);const job=f.team.jobs[0];seen.push(job.questionId);f.team.jobs=[];f.team.energy=12;}
  assert.equal(new Set(seen).size,QUESTIONS.length,'o ciclo deveria passar por todas antes de repetir');
  assert.notDeepEqual(f.room.teams[0].quiz,f.room.teams[1].quiz);
+});
+
+test('custos dos agentes sobem por nível; suporte continua custando 2',()=>{
+ for(let level=0;level<3;level++) {
+  const f=fixture();f.team.sites[0].level=level;
+  for(const cardId of ['worktree','harness']) {
+   const before=f.team.energy;
+   f.play(cardId);assert.equal(f.team.energy,before-2);
+  }
+  const before=f.team.energy;
+  f.arena.action(f.room,f.players[0].key,'play',{cardId:'builder',siteId:0,cost:0});
+  assert.equal(f.team.energy,before-(2+level),'servidor calcula o preço; ignora o preço enviado');
+  f.wait(BUILD);const readyEnergy=f.team.energy;
+  f.play('reviewer');assert.equal(f.team.energy,readyEnergy-(2+level));
+ }
+});
+
+test('boost e respostas não cobram contexto nem mudam o preço da tarefa em andamento',()=>{
+ for(let level=0;level<3;level++)for(const cardId of ['builder','reviewer']) {
+  const f=fixture();const site=f.team.sites[0];site.level=level;
+  if(cardId==='reviewer')site.built=100;
+  f.play(cardId);f.wait(2);
+  const job=f.team.jobs[0],beforeEnergy=f.team.energy,beforeRemaining=job.remaining(f.room.elapsed);
+  f.answer(job.id,f.ask(job).answer);
+  assert.equal(f.team.energy,beforeEnergy,`${cardId}, nível ${level+1}: resposta gratuita`);
+  assert.ok(Math.abs(job.remaining(f.room.elapsed)-beforeRemaining*(1-STUDY.speedup))<1e-8);
+  assert.equal(f.team.score,STUDY.bonus);assert.equal(site.level,level);
+  assert.throws(()=>f.answer(job.id,f.ask(job).answer),/já respondeu/);
+  assert.equal(f.team.energy,beforeEnergy,'repetir não cobra nem reembolsa');
+ }
+ const f=fixture();f.play('builder');const job=f.team.jobs[0],energy=f.team.energy,end=job.endsAt;
+ f.answer(job.id,(f.ask(job).answer+1)%f.ask(job).options.length);
+ assert.equal(f.team.energy,energy);assert.equal(job.endsAt,end);assert.equal(f.team.score,0);
+});
+
+test('uma barra permite seis Construtores isolados e chega a zero sem alterar a outra guilda',()=>{
+ const f=fixture();
+ for(const siteId of [0,0,1,1,2])f.play('worktree',siteId);
+ f.wait((STORY.maxEnergy-f.team.energy)/STORY.regen);
+ for(const siteId of [0,0,1,1,2,2])f.play('builder',siteId);
+ assert.equal(f.team.jobs.length,STORY.maxAgents);
+ assert.ok(f.team.jobs.every(job=>!job.conflict));
+ assert.equal(f.team.energy,0);assert.equal(f.room.teams[1].energy,STORY.maxEnergy);
+ f.wait(BUILD/2);
+ assert.equal(f.team.jobs.length,0);assert.ok(f.team.sites.every(site=>site.ready));
+ for(const site of f.team.sites)f.play('reviewer',site.id);
+ assert.equal(f.team.jobs.length,3,'há contexto para iniciar as revisões depois da primeira onda');
 });

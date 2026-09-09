@@ -50,6 +50,7 @@ export class QuizPanel {
   }
 
   private drawnFull = false;
+  callingBack = false;
 
   /** A tarefa cuja pergunta esta pessoa ainda deve responder. */
   private pending(team: TeamView): JobView | null {
@@ -90,6 +91,7 @@ export class QuizPanel {
   /** Devolve true quando a janela cobriu o baralho neste quadro. */
   draw(team: TeamView, now: number): boolean {
     this.drawnFull = false;
+    this.callingBack = false;
     const pending = this.pending(team);
     if (pending && this.jobId !== pending.id) {
       this.jobId = pending.id;
@@ -106,6 +108,7 @@ export class QuizPanel {
       return false;
     }
     if (pending && this.minimized) {
+      this.callingBack = true;
       this.callback(pending, now);
       return false;
     }
@@ -124,26 +127,25 @@ export class QuizPanel {
     const left = Math.max(0, job.endsAt - now);
     const urgent = left <= 4;
     const map = viewport.sceneRect("battle");
-    const x = mobile ? 18 : 180;
-    const w = mobile ? viewport.width - 36 : 1080;
-    const y = mobile ? map.y + map.h + 12 : 646;
-    const h = mobile ? 44 : 42;
+    const x = mobile ? 18 : 1144;
+    const w = mobile ? viewport.width - 36 : 272;
+    const y = mobile ? map.y + map.h + 12 : 538;
+    const h = mobile ? 44 : 96;
+    const centerY = y + 24;
 
     painter.panel(x, y, w, h);
-    painter.icon("brain", x + 24, y + h / 2, 21, COLORS.gold);
+    painter.icon("brain", x + 24, centerY, 21, COLORS.gold);
     painter.pill(
       job.question!.topic.toUpperCase(),
       x + 42,
-      y + h / 2 - 14,
+      centerY - 14,
       COLORS.gold,
       mobile ? 92 : 124,
     );
-    if (!mobile)
-      painter.text(job.question!.prompt, x + 180, y + h / 2, 14, COLORS.cream, "left", 700);
     painter.text(
       `${Math.ceil(left)}s`,
-      x + w - (mobile ? 118 : 150),
-      y + h / 2,
+      x + w - (mobile ? 138 : 20),
+      centerY,
       mobile ? 14 : 16,
       urgent ? COLORS.red : COLORS.muted,
       "right",
@@ -151,9 +153,9 @@ export class QuizPanel {
     );
     controls.button(
       "quiz-open",
-      x + w - (mobile ? 106 : 138),
-      y + (h - 30) / 2,
-      mobile ? 88 : 114,
+      mobile ? x + w - 124 : x + 20,
+      mobile ? y + 7 : y + 54,
+      mobile ? 112 : w - 40,
       30,
       `Responder +${this.app.state?.study.bonus ?? 20}`,
       () => {
@@ -187,10 +189,16 @@ export class QuizPanel {
 
     // No computador a altura sai do conteúdo medido; no celular ela é o que
     // sobra abaixo do mapa, e são as alternativas que cedem espaço.
-    const promptLines = painter.countLines(question.prompt, w - pad * 2, promptSize, 2);
+    const promptLines = painter.countLines(
+      question.prompt,
+      w - pad * 2,
+      promptSize,
+      2,
+    );
     const optionH = mobile
       ? clamp(
-          (viewport.height - 14 - (map.y + map.h + 10) - headH - 40 - 30) / 3 - gap,
+          (viewport.height - 14 - (map.y + map.h + 10) - headH - 40 - 30) / 3 -
+            gap,
           34,
           50,
         )
@@ -210,7 +218,9 @@ export class QuizPanel {
     painter.panel(x, top, w, h);
 
     const left = pending ? Math.max(0, pending.endsAt - now) : 0;
-    const span = pending ? Math.max(0.001, pending.endsAt - pending.startedAt) : 1;
+    const span = pending
+      ? Math.max(0.001, pending.endsAt - pending.startedAt)
+      : 1;
     const urgent = Boolean(pending) && left <= 4;
     painter.rect(x + 8, top + 8, w - 16, 5, "#0b1c2e", 3);
     if (pending)
@@ -225,7 +235,18 @@ export class QuizPanel {
         3,
       );
 
-    this.header(pending, team, question, answered, x, w, top, pad, left, urgent);
+    this.header(
+      pending,
+      team,
+      question,
+      answered,
+      x,
+      w,
+      top,
+      pad,
+      left,
+      urgent,
+    );
 
     if (!explaining)
       this.options(
@@ -244,7 +265,8 @@ export class QuizPanel {
         optionH,
         gap,
       );
-    else this.explanation(question, x, w, top, h, pad, headH, optionH, gap, since);
+    else
+      this.explanation(question, x, w, top, h, pad, headH, optionH, gap, since);
 
     painter.restore();
   }
@@ -299,7 +321,15 @@ export class QuizPanel {
     }
 
     const fuel = `${Math.floor(session.energy(team))}/${state?.story.maxEnergy ?? 12}`;
-    painter.text(fuel, edge, head, mobile ? 12 : 13, COLORS.muted, "right", 800);
+    painter.text(
+      fuel,
+      edge,
+      head,
+      mobile ? 12 : 13,
+      COLORS.muted,
+      "right",
+      800,
+    );
     const fuelW = painter.measure(fuel, mobile ? 12 : 13, 800);
     painter.icon("gem", edge - fuelW - 11, head, 17, "#c5a3ff");
     const capLeft = edge - fuelW - 26;

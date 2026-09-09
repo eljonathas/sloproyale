@@ -10,6 +10,8 @@ import type {
 export interface Preview {
   /** Se o servidor aceitaria a jogada. */
   readonly ok: boolean;
+  /** Preço desta carta no nível atual da frente. */
+  readonly cost: number;
   /** Aceita, mas com consequência ruim: é o aviso de conflito. */
   readonly warn?: boolean;
   /** A frase mostrada na placa da frente. */
@@ -33,13 +35,28 @@ export class PlayPreview {
     return new PlayPreview(state.story);
   }
 
+  static cost(card: CardView, level: number): number {
+    return card.costs[Math.min(level, card.costs.length - 1)]!;
+  }
+
   of(card: CardView, site: SiteView, team: TeamView, energy: number): Preview {
+    const cost = PlayPreview.cost(card, site.level);
+    return { ...this.availability(card, site, team, energy, cost), cost };
+  }
+
+  private availability(
+    card: CardView,
+    site: SiteView,
+    team: TeamView,
+    energy: number,
+    cost: number,
+  ): Omit<Preview, "cost"> {
     if (site.level >= this.story.maxLevel)
       return { ok: false, hint: "Frente concluída. Escolha outra." };
-    if (energy + 1e-8 < card.cost)
+    if (energy + 1e-8 < cost)
       return {
         ok: false,
-        hint: `Faltam ${Math.ceil(card.cost - energy)} de contexto.`,
+        hint: `Faltam ${Math.ceil(cost - energy)} de contexto.`,
       };
 
     if (card.id === "worktree") return this.worktree(site, team);
@@ -57,23 +74,30 @@ export class PlayPreview {
       if (site.reviewed)
         return { ok: false, hint: "Já revisada. Pode entregar." };
       if (here.length)
-        return { ok: false, hint: "Espere os agentes desta frente terminarem." };
+        return {
+          ok: false,
+          hint: "Espere os agentes desta frente terminarem.",
+        };
     }
-    if (team.jobs.length >= 3)
-      return { ok: false, hint: "Os 3 agentes da guilda estão ocupados." };
+    if (team.jobs.length >= this.story.maxAgents)
+      return {
+        ok: false,
+        hint: `Os ${this.story.maxAgents} agentes da guilda estão ocupados.`,
+      };
 
     if (card.id === "reviewer") return this.reviewer(site);
     return this.builder(site, team);
   }
 
-  private worktree(site: SiteView, team: TeamView): Preview {
+  private worktree(site: SiteView, team: TeamView): Omit<Preview, "cost"> {
     if (site.worktrees >= this.story.maxWorktrees)
       return {
         ok: false,
         hint: `Esta frente já tem ${this.story.maxWorktrees} canteiros.`,
       };
     const stuck = team.jobs.some(
-      (job) => job.cardId === "builder" && job.siteId === site.id && job.conflict,
+      (job) =>
+        job.cardId === "builder" && job.siteId === site.id && job.conflict,
     );
     return {
       ok: true,
@@ -83,7 +107,7 @@ export class PlayPreview {
     };
   }
 
-  private harness(site: SiteView): Preview {
+  private harness(site: SiteView): Omit<Preview, "cost"> {
     return site.harness
       ? { ok: false, hint: "O harness já protege esta frente." }
       : {
@@ -92,7 +116,7 @@ export class PlayPreview {
         };
   }
 
-  private reviewer(site: SiteView): Preview {
+  private reviewer(site: SiteView): Omit<Preview, "cost"> {
     const integration =
       Math.max(0, site.contributors - 1) * this.story.integrationSeconds;
     const seconds = this.story.reviewSeconds + site.faults * 3 + integration;
@@ -107,7 +131,7 @@ export class PlayPreview {
     };
   }
 
-  private builder(site: SiteView, team: TeamView): Preview {
+  private builder(site: SiteView, team: TeamView): Omit<Preview, "cost"> {
     // Qual diretório sobra para este agente: um canteiro livre desta frente ou
     // o checkout principal, que é único para a guilda inteira.
     const busy = new Set(
@@ -173,7 +197,12 @@ export class BuildProgress {
     );
   }
 
-  at(team: TeamView, site: SiteView, now: number, snapshotElapsed: number): number {
+  at(
+    team: TeamView,
+    site: SiteView,
+    now: number,
+    snapshotElapsed: number,
+  ): number {
     return Math.min(
       100,
       site.built + this.rate(team, site) * Math.max(0, now - snapshotElapsed),

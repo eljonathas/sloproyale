@@ -43,7 +43,7 @@ export class Painter {
     y: number,
     w: number,
     h: number,
-    fill: string,
+    fill: string | CanvasGradient,
     radius = 12,
     stroke: string | null = null,
   ): void {
@@ -231,7 +231,13 @@ export class Painter {
   }
 
   /** A moldura padrão de qualquer painel. */
-  panel(x: number, y: number, w: number, h: number, title: string | null = null): void {
+  panel(
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    title: string | null = null,
+  ): void {
     this.ctx.save();
     this.ctx.shadowColor = "#06132688";
     this.ctx.shadowBlur = 22;

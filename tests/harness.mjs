@@ -15,6 +15,7 @@ function stubContext() {
     {
       measureText,
       createLinearGradient: () => ({ addColorStop: noop }),
+      createRadialGradient: () => ({ addColorStop: noop }),
       canvas: { width: 0, height: 0 },
     },
     {

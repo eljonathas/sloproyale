@@ -11,7 +11,7 @@ import { findQuestion } from "../content/questions.js";
 import { check } from "./errors.js";
 import { Job } from "./job.js";
 import type { Site } from "./site.js";
-import { MAX_AGENTS, Team } from "./team.js";
+import { Team } from "./team.js";
 
 /** Uma pessoa na sala. A chave é o segredo que autentica as jogadas dela. */
 export interface Player {
@@ -100,10 +100,7 @@ export class Room {
       ),
       "Esse nome já está na sala. Acrescente seu sobrenome.",
     );
-    check(
-      existing || this.players.length < this.participants,
-      "Sala lotada.",
-    );
+    check(existing || this.players.length < this.participants, "Sala lotada.");
     if (existing) {
       existing.name = clean;
       existing.teamId = team.id;
@@ -121,11 +118,7 @@ export class Room {
 
   /** Confirma que a chave é a do orquestrador. */
   assertAdmin(key: string | undefined): void {
-    check(
-      key === this.admin,
-      "Somente o orquestrador pode fazer isso.",
-      403,
-    );
+    check(key === this.admin, "Somente o orquestrador pode fazer isso.", 403);
   }
 
   /** Encontra a pessoa e a guilda dela, ou recusa a jogada. */
@@ -181,8 +174,9 @@ export class Room {
     const site = team.siteAt(Number(siteId));
     check(card && site, "Selecione uma carta e uma construção.");
     check(!site.complete, "Essa construção já chegou ao nível máximo.");
+    const cost = card.costs[site.level]!;
     check(
-      team.canAfford(card.cost),
+      team.canAfford(cost),
       "Contexto insuficiente. Aguarde a regeneração do time.",
     );
 
@@ -191,14 +185,14 @@ export class Room {
         site.acceptsWorktree,
         `Esta frente já tem ${STORY.maxWorktrees} canteiros isolados.`,
       );
-      team.spend(card.cost);
+      team.spend(cost);
       this.openWorktree(team, site, player.name);
       return;
     }
 
     if (card.id === "harness") {
       check(!site.harness, "O harness já está protegendo esta frente.");
-      team.spend(card.cost);
+      team.spend(cost);
       site.harness = true;
       this.log(
         team,
@@ -220,7 +214,10 @@ export class Room {
         "Aguarde a revisão desta frente.",
       );
     } else {
-      check(site.ready, "Construa primeiro. O Revisor precisa de uma obra pronta.");
+      check(
+        site.ready,
+        "Construa primeiro. O Revisor precisa de uma obra pronta.",
+      );
       check(!site.reviewed, "A obra já foi revisada. Faça a entrega.");
       check(
         team.jobsAt(site.id).length === 0,
@@ -228,11 +225,11 @@ export class Room {
       );
     }
     check(
-      team.jobs.length < MAX_AGENTS,
-      `Os ${MAX_AGENTS} agentes da guilda estão ocupados. Aguarde uma tarefa terminar.`,
+      team.jobs.length < STORY.maxAgents,
+      `Os ${STORY.maxAgents} agentes da guilda estão ocupados. Aguarde uma tarefa terminar.`,
     );
 
-    team.spend(card.cost);
+    team.spend(cost);
     const job = new Job(
       ++this.sequence,
       card.id as CardId,
@@ -270,9 +267,7 @@ export class Room {
    */
   private openWorktree(team: Team, site: Site, playerName: string): void {
     site.worktrees++;
-    const stuck = team
-      .buildersAt(site.id)
-      .filter((job) => job.conflict);
+    const stuck = team.buildersAt(site.id).filter((job) => job.conflict);
     const slot = team.freeSlots(site)[0];
     const rescued = stuck[0];
     if (rescued && slot) rescued.workspace = slot;
@@ -352,7 +347,11 @@ export class Room {
     const { player, team } = this.actor(key);
     const job = team.jobs.find((candidate) => candidate.id === jobId);
     check(job, "Essa tarefa já terminou. A pergunta expirou com ela.");
-    check(job.askedTo === player.id, "A pergunta é de quem enviou o agente.", 403);
+    check(
+      job.askedTo === player.id,
+      "A pergunta é de quem enviou o agente.",
+      403,
+    );
     check(!job.answered, "Você já respondeu esta pergunta.");
     const question = findQuestion(job.questionId);
     check(question, "Pergunta indisponível.");
@@ -505,8 +504,7 @@ export class Room {
         const rate = team.buildRate(site);
         if (rate <= 0) continue;
         const at = previous + (100 - site.built) / rate;
-        if (at <= end)
-          events.push({ at, order: 0, kind: "build", team, site });
+        if (at <= end) events.push({ at, order: 0, kind: "build", team, site });
       }
     }
     for (const fraction of STORM_MARKS) {

@@ -2,11 +2,11 @@ import type { CardId, CardView, TeamView } from "../../shared/protocol.js";
 import type { AgentArena, Screen } from "../app.js";
 import {
   AgentChips,
-  Deck,
   EnergyBar,
   FieldPanel,
   GuildPanel,
 } from "../battle/panels.js";
+import { Deck } from "../battle/deck.js";
 import { QuizPanel } from "../battle/quizPanel.js";
 import {
   SiteBanners,
@@ -69,6 +69,7 @@ export class BattleScreen implements Screen {
     this.selectedSite = 0;
     this.drag = null;
     this.quiz.reset();
+    this.deck.reset();
   }
 
   /** Frente apontada e legalidade da carta, para o diorama pintar os anéis. */
@@ -137,9 +138,24 @@ export class BattleScreen implements Screen {
       }));
     const rect = viewport.sceneRect("battle");
     return [
-      { id: 0, x: rect.x + rect.w * 0.38, y: rect.y + rect.h * 0.34, top: rect.y + rect.h * 0.12 },
-      { id: 1, x: rect.x + rect.w * 0.52, y: rect.y + rect.h * 0.86, top: rect.y + rect.h * 0.64 },
-      { id: 2, x: rect.x + rect.w * 0.66, y: rect.y + rect.h * 0.55, top: rect.y + rect.h * 0.33 },
+      {
+        id: 0,
+        x: rect.x + rect.w * 0.38,
+        y: rect.y + rect.h * 0.34,
+        top: rect.y + rect.h * 0.12,
+      },
+      {
+        id: 1,
+        x: rect.x + rect.w * 0.52,
+        y: rect.y + rect.h * 0.86,
+        top: rect.y + rect.h * 0.64,
+      },
+      {
+        id: 2,
+        x: rect.x + rect.w * 0.66,
+        y: rect.y + rect.h * 0.55,
+        top: rect.y + rect.h * 0.33,
+      },
     ];
   }
 
@@ -221,7 +237,13 @@ export class BattleScreen implements Screen {
 
     for (const point of points) {
       const state_ = states.get(point.id)!;
-      const box = this.banners.draw(point, boxes.get(point.id)!, state_, team, this.boost);
+      const box = this.banners.draw(
+        point,
+        boxes.get(point.id)!,
+        state_,
+        team,
+        this.boost,
+      );
       // A área da frente é registrada antes do botão de entrega: onde as duas
       // se tocam, quem ganha o clique é o botão.
       controls.hit(
@@ -271,6 +293,7 @@ export class BattleScreen implements Screen {
     // atenção — e o botão Baralho é a saída, para o time não perder o
     // paralelismo entre frentes.
     if (this.quiz.draw(team, now)) return;
+    if (viewport.mobile) this.mobileGuildStrip(team);
 
     this.drawDeck(team, energy, card);
     if (state.paused)
@@ -313,7 +336,13 @@ export class BattleScreen implements Screen {
       const label = this.pillLabel(state);
       const w = painter.measure(label, 12, 800) + 28;
       return [
-        { id: point.id, x: point.x - w / 2, y: point.y + (mobile ? 10 : 14), w, h: 28 },
+        {
+          id: point.id,
+          x: point.x - w / 2,
+          y: point.y + (mobile ? 10 : 14),
+          w,
+          h: 28,
+        },
       ];
     });
   }
@@ -413,7 +442,7 @@ export class BattleScreen implements Screen {
       { kind: "dark", small: true },
     );
     painter.text(
-      `${team.jobs.length}/3 agentes`,
+      `${team.jobs.length}/${state.story.maxAgents} agentes`,
       W - 20,
       109,
       11,
@@ -449,7 +478,6 @@ export class BattleScreen implements Screen {
         { kind: "dark", small: true, disabled: blocked },
       );
     }
-    this.mobileGuildStrip(team);
   }
 
   /**
@@ -460,14 +488,21 @@ export class BattleScreen implements Screen {
     const { painter, viewport, state } = this.app;
     if (!state) return;
     const map = viewport.sceneRect("battle");
-    const stripY = map.y + map.h + 12;
-    const stripH = viewport.height - 196 - stripY;
+    const stripY = map.y + map.h + 12 + (this.quiz.callingBack ? 54 : 0);
+    const available = viewport.height - 242 - stripY;
+    const guild = state.players.filter((player) => player.teamId === team.id);
+    const stripH = Math.min(available, 32 + Math.max(1, guild.length) * 22);
     // A chamada da pergunta usa esta mesma faixa; uma de cada vez.
     if (stripH < 52 || this.quiz.covering) return;
 
-    const guild = state.players.filter((player) => player.teamId === team.id);
     painter.panel(20, stripY, viewport.width - 40, stripH);
-    painter.text(`Sua guilda · ${guild.length}`, 36, stripY + 18, 12, COLORS.muted);
+    painter.text(
+      `Sua guilda · ${guild.length}`,
+      36,
+      stripY + 18,
+      12,
+      COLORS.muted,
+    );
     const seats = Math.max(1, Math.floor((stripH - 24) / 22));
     guild.slice(0, seats).forEach((player, index) => {
       const y = stripY + 38 + index * 22;
@@ -484,7 +519,9 @@ export class BattleScreen implements Screen {
         player.id === state.me ? 900 : 700,
       );
       painter.text(
-        card && job ? `${card.name} → ${team.sites[job.siteId]!.name}` : "sem agente",
+        card && job
+          ? `${card.name} → ${team.sites[job.siteId]!.name}`
+          : "sem agente",
         viewport.width - 36,
         y,
         10,
@@ -504,17 +541,34 @@ export class BattleScreen implements Screen {
       );
   }
 
-  private drawDeck(team: TeamView, energy: number, card: CardView | null): void {
+  private drawDeck(
+    team: TeamView,
+    energy: number,
+    card: CardView | null,
+  ): void {
     const { painter, viewport } = this.app;
     const mobile = viewport.mobile;
-    const barY = mobile ? viewport.height - 184 : 694;
-    const barX = mobile ? 20 : 320;
-    const barW = mobile ? viewport.width - 92 : 760;
-    painter.icon("gem", barX - 16, barY + (mobile ? 9 : 11), mobile ? 18 : 22, "#c5a3ff");
-    this.energyBar.draw(barX + 6, barY, barW, mobile ? 18 : 22, energy, card?.cost ?? 0);
+    const barY = mobile ? viewport.height - 230 : 638;
+    const barX = mobile ? 34 : 320;
+    const barW = mobile ? viewport.width - 108 : 760;
+    painter.icon(
+      "gem",
+      barX - 16,
+      barY + (mobile ? 9 : 11),
+      mobile ? 18 : 22,
+      "#c5a3ff",
+    );
+    this.energyBar.draw(
+      barX + 6,
+      barY,
+      barW,
+      mobile ? 18 : 22,
+      energy,
+      card ? this.deck.quote(card, this.aimed).minimum : 0,
+    );
     if (!mobile)
       painter.text(
-        "contexto compartilhado da guilda · +0,65/s",
+        `contexto da guilda · +${this.app.state!.story.regen.toLocaleString("pt-BR")}/s`,
         barX + barW + 66,
         barY + 11,
         12,
@@ -522,25 +576,52 @@ export class BattleScreen implements Screen {
       );
 
     this.deck.draw(
-      mobile ? viewport.height - 154 : 730,
+      mobile ? viewport.height - 188 : 690,
       energy,
       this.selection,
       (picked) => {
         this.selection = this.selection === picked.id ? null : picked.id;
       },
+      this.drag?.active ? this.drag.cardId : null,
+      this.aimed,
     );
 
-    painter.text(
-      card
-        ? `Solte ${card.name} numa frente iluminada · dourado libera, vermelho recusa`
-        : "Escolha uma carta e toque na frente · arrastar também funciona",
-      viewport.width / 2,
-      mobile ? viewport.height - 16 : 892,
-      mobile ? 10 : 13,
-      COLORS.gold,
-      "center",
-      800,
-    );
+    if (mobile)
+      painter.text(
+        card
+          ? `${card.name}: toque numa frente dourada ou arraste`
+          : "Escolha uma carta e toque na frente",
+        viewport.width / 2,
+        viewport.height - 14,
+        10,
+        COLORS.gold,
+        "center",
+        800,
+      );
+    else {
+      painter.text(
+        card ? "Escolha a frente" : "Toque ou arraste",
+        1152,
+        728,
+        16,
+        COLORS.gold,
+        "left",
+        900,
+      );
+      painter.wrap(
+        card
+          ? "Dourado: pode jogar. Vermelho: confira o motivo na frente."
+          : "Leve a carta até uma construção para mobilizar o agente.",
+        1152,
+        757,
+        232,
+        13,
+        COLORS.muted,
+        20,
+        3,
+      );
+      painter.text("1–4 selecionam · Esc cancela", 1152, 832, 12, COLORS.muted);
+    }
     if (!this.app.session.playing && !mobile)
       painter.text(
         "Orquestrador: acompanhe as guildas pelo placar.",
@@ -554,14 +635,9 @@ export class BattleScreen implements Screen {
   }
 
   private drawGhost(): void {
-    const { painter, state, pointer } = this.app;
+    const { state, pointer } = this.app;
     const card = state?.cards.find((c) => c.id === this.drag!.cardId);
     if (!card) return;
-    painter.save();
-    painter.alpha = 0.9;
-    painter.panel(pointer.x - 46, pointer.y - 70, 92, 100);
-    painter.icon(card.icon, pointer.x, pointer.y - 30, 38, card.color);
-    painter.text(card.name, pointer.x, pointer.y + 6, 12, COLORS.cream, "center", 900);
-    painter.restore();
+    this.deck.ghost(card, pointer.x, pointer.y, this.aimed);
   }
 }

@@ -1,4 +1,4 @@
-import type { CardView, TeamView } from "../../shared/protocol.js";
+import type { TeamView } from "../../shared/protocol.js";
 import type { AgentArena } from "../app.js";
 import type { AgentAnchor } from "../scene/world.js";
 import { COLORS } from "../theme.js";
@@ -6,7 +6,7 @@ import { COLORS } from "../theme.js";
 /**
  * O painel esquerdo: identidade da guilda, quem está nela e o placar.
  *
- * A lista de pessoas existe porque o contexto e os três agentes são do time
+ * A lista de pessoas existe porque o contexto e o limite de agentes são do time
  * inteiro — sem ela ninguém percebe que está disputando o mesmo orçamento com
  * os colegas. O painel acompanha o tamanho da guilda, para não abrir um vão
  * antes do placar quando o time é pequeno.
@@ -23,7 +23,7 @@ export class GuildPanel {
     const rankTop = rosterEnd + 42;
     const ranked = Math.min(4, state.teams.length);
 
-    painter.panel(24, 92, 272, rankTop + ranked * 34 + 52 - 92);
+    painter.panel(24, 92, 272, rankTop + ranked * 40 + 52 - 92);
     painter.shield(60, 128, 44, team.color, team.icon);
     painter.display(team.name, 92, 120, 26, team.color);
     painter.text(
@@ -81,18 +81,18 @@ export class GuildPanel {
       .sort((a, b) => b.score - a.score || a.id - b.id)
       .slice(0, 4)
       .forEach((other, index) => {
-        const y = rankTop + 14 + index * 34;
+        const y = rankTop + 18 + index * 40;
         if (other.id === team.id)
-          painter.rect(38, y - 15, 244, 30, other.color + "22", 8);
-        painter.shield(58, y, 22, other.color, other.icon);
+          painter.rect(38, y - 18, 244, 36, other.color + "22", 8);
+        painter.shield(58, y - 1.3, 22, other.color, other.icon);
         painter.text(other.name, 79, y, 14);
         painter.text(other.score, 272, y, 17, COLORS.gold, "right", 900);
         controls.hit(
           "watch-" + other.id,
           38,
-          y - 15,
+          y - 18,
           244,
-          30,
+          36,
           "Acompanhar " + other.name,
           () => {
             session.watchTeam = other.id;
@@ -104,7 +104,7 @@ export class GuildPanel {
     controls.button(
       "all-rank",
       44,
-      rankTop + ranked * 34 + 14,
+      rankTop + ranked * 40 + 14,
       232,
       30,
       "Placar completo",
@@ -121,7 +121,9 @@ export class FieldPanel {
   draw(team: TeamView, clock: string, seconds: number, now: number): void {
     const { painter, controls, state, session } = this.app;
     if (!state) return;
-    painter.panel(1144, 92, 272, 356);
+    const crowded = team.jobs.length > 3;
+    const extraHeight = crowded ? 32 : 0;
+    painter.panel(1144, 92, 272, 356 + extraHeight);
     painter.display(
       state.paused ? "PAUSA" : clock,
       1280,
@@ -141,7 +143,7 @@ export class FieldPanel {
     );
     painter.line(1164, 180, 1396, 180, "#6b8ca444");
     painter.text(
-      `Agentes em campo ${team.jobs.length}/3`,
+      `Agentes em campo ${team.jobs.length}/${state.story.maxAgents}`,
       1164,
       202,
       15,
@@ -161,7 +163,7 @@ export class FieldPanel {
         3,
       );
     team.jobs.forEach((job, index) => {
-      const y = 230 + index * 46;
+      const y = 230 + index * (crowded ? 32 : 46);
       const card = state.cards.find((c) => c.id === job.cardId)!;
       painter.icon(card.icon, 1178, y + 14, 22, card.color);
       painter.text(
@@ -185,7 +187,7 @@ export class FieldPanel {
     });
 
     const latest = team.log[0];
-    if (latest) {
+    if (latest && !crowded) {
       painter.line(1164, 376, 1396, 376, "#6b8ca444");
       painter.wrap(
         latest.title,
@@ -205,7 +207,7 @@ export class FieldPanel {
     controls.button(
       "events",
       1164,
-      420,
+      420 + extraHeight,
       232,
       32,
       "Diário da guilda",
@@ -217,7 +219,7 @@ export class FieldPanel {
     controls.button(
       "pause",
       1164,
-      462,
+      462 + extraHeight,
       112,
       32,
       state.paused ? "Retomar" : "Pausar",
@@ -227,7 +229,7 @@ export class FieldPanel {
     controls.button(
       "finish",
       1284,
-      462,
+      462 + extraHeight,
       112,
       32,
       "Encerrar",
@@ -267,7 +269,14 @@ export class EnergyBar {
       const partial = !full && i < energy;
       painter.rect(cx, y, cell, h, "#132a41", 4, "#ffffff14");
       if (full || partial)
-        painter.rect(cx, y, partial ? cell * (energy - i) : cell, h, "#a97ff0", 4);
+        painter.rect(
+          cx,
+          y,
+          partial ? cell * (energy - i) : cell,
+          h,
+          "#a97ff0",
+          4,
+        );
       const doomed = cost && i >= energy - cost && i < energy;
       if (doomed && Math.floor(time / 260) % 2 === 0)
         painter.rect(cx, y, cell, h, COLORS.gold, 4);
@@ -281,104 +290,6 @@ export class EnergyBar {
       "left",
       900,
     );
-  }
-}
-
-/**
- * O baralho.
- *
- * Cada carta mostra o retrato do modelo, o custo e o que ela faz. Cartas que o
- * contexto não paga ficam apagadas antes do toque, em vez de recusarem depois.
- */
-export class Deck {
-  constructor(private readonly app: AgentArena) {}
-
-  draw(
-    y: number,
-    energy: number,
-    selection: string | null,
-    onPick: (card: CardView) => void,
-  ): void {
-    const { painter, controls, viewport, state } = this.app;
-    if (!state) return;
-    const mobile = viewport.mobile;
-    const cardW = mobile ? 95 : 252;
-    const cardH = mobile ? 132 : 148;
-    const gap = mobile ? 6 : 24;
-    const startX = (viewport.width - (4 * cardW + 3 * gap)) / 2;
-
-    state.cards.forEach((card, index) => {
-      const x = startX + index * (cardW + gap);
-      const selected = selection === card.id;
-      const affordable = energy + 1e-8 >= card.cost;
-      const disabled = !this.app.canPlay || !affordable;
-
-      painter.save();
-      if (disabled) painter.alpha = 0.46;
-      painter.panel(x, y, cardW, cardH);
-      painter.rect(x + 6, y + 5, cardW - 12, 4, card.color, 2);
-      if (selected) {
-        painter.path(x - 3, y - 4, cardW + 6, cardH + 8, 17);
-        painter.ctx.lineWidth = 3.5;
-        painter.ctx.strokeStyle = COLORS.gold;
-        painter.ctx.stroke();
-      }
-      this.app.portrait(
-        card.model,
-        x + (mobile ? 20 : 8),
-        y + 10,
-        mobile ? 55 : 84,
-        mobile ? 66 : 106,
-      );
-      painter.icon("gem", x + cardW - 19, y + 26, 26, "#bd8ef1");
-      painter.text(card.cost, x + cardW - 19, y + 26, 12, COLORS.cream, "center", 900);
-      painter.text(
-        card.name,
-        mobile ? x + cardW / 2 : x + 96,
-        y + (mobile ? 82 : 38),
-        mobile ? 12 : 20,
-        COLORS.cream,
-        mobile ? "center" : "left",
-        900,
-      );
-      if (mobile) {
-        painter.text(
-          ["Constrói", "Isola", "Valida", "Protege"][index]!,
-          x + cardW / 2,
-          y + 98,
-          10,
-          card.color,
-          "center",
-          800,
-        );
-        painter.text(
-          [
-            `${state.story.buildSeconds} s`,
-            "permanente",
-            `${state.story.reviewSeconds} s +`,
-            "permanente",
-          ][index]!,
-          x + cardW / 2,
-          y + 113,
-          9,
-          COLORS.muted,
-          "center",
-        );
-      } else
-        painter.wrap(card.description, x + 96, y + 66, cardW - 116, 12, COLORS.muted, 18, 4);
-      painter.restore();
-
-      controls.hit(
-        "card-" + card.id,
-        x,
-        y,
-        cardW,
-        cardH,
-        `${index + 1}. ${card.name}, ${card.cost} de contexto. ${card.description}`,
-        () => onPick(card),
-        disabled,
-      );
-    });
   }
 }
 
@@ -428,8 +339,22 @@ export class AgentChips {
         y = clash.y - h - 5;
       }
       placed.push({ x, y, w, h });
-      painter.rect(x, y, w, h, "#0b1e30e8", h / 2, job.conflict ? COLORS.red : team.color);
-      painter.icon(card.icon, x + h / 2, y + h / 2, mobile ? 12 : 14, card.color);
+      painter.rect(
+        x,
+        y,
+        w,
+        h,
+        "#0b1e30e8",
+        h / 2,
+        job.conflict ? COLORS.red : team.color,
+      );
+      painter.icon(
+        card.icon,
+        x + h / 2,
+        y + h / 2,
+        mobile ? 12 : 14,
+        card.color,
+      );
       painter.text(
         label,
         x + h - 2,

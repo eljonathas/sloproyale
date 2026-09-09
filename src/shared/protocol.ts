@@ -25,7 +25,8 @@ export interface CardView {
   readonly model: string;
   readonly icon: string;
   readonly color: string;
-  readonly cost: number;
+  /** Custo para construir/revisar os níveis 1, 2 e 3, definido pelo servidor. */
+  readonly costs: readonly [number, number, number];
   readonly description: string;
   readonly lesson: string;
 }
@@ -148,6 +149,8 @@ export interface StoryView {
   readonly conflictRate: number;
   readonly maxWorktrees: number;
   readonly maxEnergy: number;
+  /** Limite de agentes simultâneos, compartilhado pela guilda. */
+  readonly maxAgents: number;
   readonly regen: number;
   readonly scoreSafe: number;
   readonly scoreUnsafe: number;

@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { MeshFactory } from "./geometry.js";
+import { Terrain } from "./terrain.js";
 
 /** Onde cada frente fica no tabuleiro. Combina com SITES em content/story. */
 export const SITE_COORDS: readonly (readonly [number, number])[] = [
@@ -23,6 +24,8 @@ export class Island {
   readonly group = new THREE.Group();
   readonly beacons: any[] = [];
   private readonly camp = new THREE.Group();
+  private readonly banners: any[] = [];
+  private bannerColor: string | null | undefined;
   private readonly campFlag: any;
   private readonly campGlow: any;
   private campFlashAt = -99;
@@ -40,87 +43,26 @@ export class Island {
       parent: any = this.group,
     ) => this.factory.box(w, h, d, color, x, y, z, parent);
 
-    box(23, 2.2, 28, 0x667e86, 0, -1.5, 0);
-    box(22.5, 0.55, 27.5, 0xa7b3a1, 0, -0.25, 0);
-    box(21.6, 0.35, 26.6, 0x70a44d, 0, 0.12, 0);
-    for (let x = -10; x <= 10; x += 2)
-      for (let z = -12; z <= 12; z += 2)
-        if (Math.abs(z) > 1)
-          box(1.97, 0.08, 1.97, (x + z) % 4 === 0 ? 0x81b757 : 0x76ac50, x, 0.34, z);
+    const terrain = new Terrain();
+    this.group.add(terrain.group);
 
-    // A base facetada faz o tabuleiro flutuar. Ela fica fora da área de jogo,
-    // então é excluída quando a câmera mede o que precisa caber na tela.
-    const rock = new THREE.Mesh(
-      new THREE.CylinderGeometry(15, 8, 6, 7),
-      this.factory.material(0x344f65),
-    );
-    rock.scale.set(1, 1, 1.12);
-    rock.position.set(0, -5, 0);
-    rock.rotation.y = 0.2;
-    rock.userData.decor = true;
-    this.group.add(rock);
-
-    const river = box(22, 0.16, 3.2, 0x3ebde3, 0, 0.38, 0);
-    river.material = new THREE.MeshStandardMaterial({
-      color: 0x38bada,
-      roughness: 0.25,
-      metalness: 0.18,
-    });
-    for (let x = -10; x < 11; x += 2.5)
-      box(1.2, 0.02, 0.08, 0x9be8ed, x, 0.48, (x % 3) * 0.35);
-
-    // Duas pontes, uma em cada estrada.
-    for (const x of [-5.6, 5.6]) {
-      box(3.4, 0.25, 4.5, 0x624a38, x, 0.52, 0);
-      for (let z = -2; z <= 2; z += 0.42)
-        box(3.35, 0.16, 0.34, 0xc29762, x, 0.72, z);
-      for (const dx of [-1.8, 1.8]) {
-        box(0.14, 0.14, 4.7, 0xc9b184, x + dx, 1.3, 0);
-        for (const z of [-2, 2]) box(0.22, 1.2, 0.22, 0x9a714e, x + dx, 0.95, z);
-      }
+    // Uma única heráldica: a da guilda observada, inclusive com mais de 2 times.
+    for (const [x, z] of [
+      [-8, -11.4],
+      [8, -11.4],
+      [-4.4, 11.7],
+    ]) {
+      box(0.65, 0.24, 0.65, 0xa4ad97, x, 0.5, z);
+      box(0.09, 2.9, 0.09, 0xc5ae79, x, 1.95, z);
+      const banner = new THREE.Mesh(
+        new THREE.BoxGeometry(0.85, 1.1, 0.045),
+        new THREE.MeshStandardMaterial({ color: 0x527c83, roughness: 0.9 }),
+      );
+      banner.position.set(x + 0.46, 2.68, z);
+      this.group.add(banner);
+      this.banners.push(banner);
+      box(0.87, 0.07, 0.06, 0xe1c891, x + 0.46, 2.15, z);
     }
-    for (const x of [-5.6, 5.6])
-      for (let z = -11; z <= 11; z += 1.25)
-        if (Math.abs(z) > 2.5)
-          box(
-            2.7,
-            0.12,
-            1.12,
-            Math.round(z * 4) % 2 === 0 ? 0xbac4b2 : 0xaab7a6,
-            x,
-            0.47,
-            z,
-          );
-
-    // Muralha de contorno.
-    for (let z = -13; z <= 13; z += 1.65)
-      for (const x of [-11.2, 11.2]) {
-        box(0.9, 0.75, 1.45, 0xb4c4c4, x, 0.3, z);
-        box(1, 0.13, 1.5, 0xd1d8ce, x, 0.74, z);
-      }
-    for (let x = -10; x <= 10; x += 1.7)
-      for (const z of [-13.5, 13.5]) box(1.5, 0.7, 0.8, 0xa8b7b5, x, 0.26, z);
-
-    const positions: readonly (readonly [number, number])[] = [
-      [-9, -10],
-      [-9, 8],
-      [9, -9],
-      [9, 10],
-      [-9, 4],
-      [9, -5],
-      [-8, 12],
-      [8, -12],
-    ];
-    positions.forEach(([x, z], index) =>
-      this.tree(x, z, 0.8 + (index % 3) * 0.18),
-    );
-
-    // As bandeiras repetem o azul e o coral da heráldica dos modelos.
-    for (const z of [-10, 10])
-      for (const x of [-8, 8]) {
-        box(0.08, 3.5, 0.08, 0xe1cda2, x, 1.9, z);
-        box(1.1, 0.75, 0.06, z < 0 ? 0x529ff2 : 0xf77767, x + 0.58, 3.1, z);
-      }
 
     // Faróis: acendem conforme os níveis entregues em cada frente.
     for (let i = 0; i < 6; i++) {
@@ -182,22 +124,6 @@ export class Island {
     this.camp.add(this.campGlow);
   }
 
-  private tree(x: number, z: number, scale: number): void {
-    const trunk = new THREE.Group();
-    trunk.position.set(x, 0.3, z);
-    trunk.scale.setScalar(scale);
-    this.factory.box(0.35, 1.5, 0.35, 0x765941, 0, 0.7, 0, trunk);
-    for (let i = 0; i < 3; i++) {
-      const leaf = new THREE.Mesh(
-        new THREE.ConeGeometry(1.3 - i * 0.28, 1.9, 5),
-        this.factory.material([0x2e735b, 0x37876a, 0x55a274][i]!),
-      );
-      leaf.position.y = 1.7 + i * 0.75;
-      trunk.add(leaf);
-    }
-    this.group.add(trunk);
-  }
-
   add(object: any): void {
     this.group.add(object);
   }
@@ -236,6 +162,11 @@ export class Island {
   /** Estado por quadro: bandeira na cor da guilda e brilho do acampamento. */
   update(time: number, teamColor: string | null, reduced: boolean): void {
     this.camp.visible = teamColor !== null;
+    if (teamColor !== this.bannerColor) {
+      for (const banner of this.banners)
+        banner.material.color.set(teamColor ?? "#527c83");
+      this.bannerColor = teamColor;
+    }
     if (teamColor === null) return;
     this.campFlag.material.color.set(teamColor);
     const flash = (time - this.campFlashAt) / 700;
@@ -252,8 +183,7 @@ export class Island {
     reduced: boolean,
   ): void {
     this.beacons.forEach((gem, index) => {
-      const lit =
-        levels === null || levels[index % 3]! > Math.floor(index / 3);
+      const lit = levels === null || levels[index % 3]! > Math.floor(index / 3);
       gem.material.color.setHex(lit ? 0x82e9ee : 0x567687);
       gem.material.emissive.setHex(lit ? 0x248eac : 0x000000);
       gem.material.emissiveIntensity = lit ? 1.5 : 0;
@@ -266,10 +196,7 @@ export class Island {
  * Percurso com velocidade constante ao longo de uma rota. Sem pesar pelo
  * comprimento, o agente acelera e freia entre trechos de tamanhos diferentes.
  */
-export function along(
-  path: any[],
-  t: number,
-): { position: any; heading: any } {
+export function along(path: any[], t: number): { position: any; heading: any } {
   const lengths: number[] = [];
   let total = 0;
   for (let i = 0; i < path.length - 1; i++) {

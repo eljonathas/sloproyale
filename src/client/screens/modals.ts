@@ -85,7 +85,15 @@ export class ModalStack {
       COLORS.muted,
       24,
     );
-    this.stepper.draw("participants", "Participantes", x + 27, y + 169, (w - 78) / 2, 4, 80);
+    this.stepper.draw(
+      "participants",
+      "Participantes",
+      x + 27,
+      y + 169,
+      (w - 78) / 2,
+      4,
+      80,
+    );
     this.stepper.draw(
       "teamSize",
       "Pessoas por time",
@@ -233,7 +241,7 @@ export class ModalStack {
         ) + 26;
     }
     painter.wrap(
-      "3 agentes e 12 de contexto para a guilda inteira. Paralelizar compra tempo pagando contexto e integração: decidam juntos onde vale a pena.",
+      `Até ${state?.story.maxAgents ?? 6} agentes e ${state?.story.maxEnergy ?? 12} de contexto por guilda. Construtor e Revisor custam 2, 3 e 4 nos níveis 1, 2 e 3. Responder não consome contexto.`,
       x + 27,
       cursor,
       w - 54,
@@ -330,20 +338,28 @@ export class ModalStack {
   private ranking(): void {
     const { painter, controls, viewport, session, state } = this.app;
     if (!state) return;
-    const { x, y, w } = this.box(
+    const { x, y, w, h } = this.box(
       "Placar das guildas",
       viewport.mobile ? 398 : 600,
       Math.min(viewport.height - 40, 710),
     );
-    const spacing = 31;
+    const spacing = Math.min(44, (h - 100) / state.teams.length);
+    const rowHeight = spacing - 4;
     [...state.teams]
       .sort((a, b) => b.score - a.score || a.id - b.id)
       .slice(0, Math.min(16, state.teams.length))
       .forEach((team, index) => {
-        const ty = y + 87 + index * spacing;
+        const ty = y + 78 + spacing / 2 + index * spacing;
         if (session.team?.id === team.id)
-          painter.rect(x + 19, ty - 21, w - 38, spacing - 5, team.color + "18", 8);
-        painter.shield(x + 43, ty, 21, team.color, team.icon);
+          painter.rect(
+            x + 19,
+            ty - rowHeight / 2,
+            w - 38,
+            rowHeight,
+            team.color + "22",
+            8,
+          );
+        painter.shield(x + 43, ty - 1.2, 21, team.color, team.icon);
         painter.text(team.name, x + 68, ty, 14);
         painter.text(team.score, x + w - 29, ty, 16, COLORS.gold, "right", 900);
         if (state.phase === "playing" && !session.playing)
@@ -452,7 +468,9 @@ export class ModalStack {
         17,
         count ? COLORS.gold : COLORS.muted,
       );
-      cursor = painter.wrap(body, x + 25, cursor + 25, w - 50, 13, COLORS.muted, 19) + 20;
+      cursor =
+        painter.wrap(body, x + 25, cursor + 25, w - 50, 13, COLORS.muted, 19) +
+        20;
     }
     controls.button(
       "close-report",
@@ -470,7 +488,11 @@ export class ModalStack {
     const { painter, controls, viewport } = this.app;
     const pending = this.app.confirmation;
     if (!pending) return;
-    const { x, y, w } = this.box(pending.title, viewport.mobile ? 398 : 570, 330);
+    const { x, y, w } = this.box(
+      pending.title,
+      viewport.mobile ? 398 : 570,
+      330,
+    );
     painter.wrap(pending.body, x + 27, y + 100, w - 54, 17, COLORS.muted, 25);
     controls.button(
       "cancel",

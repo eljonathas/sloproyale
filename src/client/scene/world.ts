@@ -74,10 +74,10 @@ export class World {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.2;
+    this.renderer.toneMappingExposure = 1.05;
 
-    this.scene.add(new THREE.HemisphereLight(0xc6edff, 0x567260, 2.4));
-    const sun = new THREE.DirectionalLight(0xffe5bc, 3.4);
+    this.scene.add(new THREE.HemisphereLight(0xc6e2e6, 0x4b5846, 1.9));
+    const sun = new THREE.DirectionalLight(0xffe3b5, 3.1);
     sun.position.set(-15, 30, 18);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
@@ -92,7 +92,7 @@ export class World {
     sun.shadow.bias = -0.0005;
     sun.shadow.normalBias = 0.035;
     this.scene.add(sun);
-    const rim = new THREE.DirectionalLight(0x7bcaff, 1.5);
+    const rim = new THREE.DirectionalLight(0x91cbd5, 1.0);
     rim.position.set(10, 5, -20);
     this.scene.add(rim);
     this.scene.add(this.island.group);

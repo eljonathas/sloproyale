@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { GLTFLoader } from "../../../assets/vendor/GLTFLoader.js";
+import { clone } from "../../../assets/utils/SkeletonUtils.js";
 import { fitToHeight } from "./geometry.js";
 import type { CharacterTemplate } from "./agentCrew.js";
 
@@ -57,7 +58,10 @@ export class AssetLibrary {
 
   async loadInto(island: any): Promise<void> {
     const loader = new GLTFLoader();
-    const thumbnails = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    const thumbnails = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: true,
+    });
     thumbnails.setSize(256, 300);
     thumbnails.setPixelRatio(1);
     thumbnails.outputColorSpace = THREE.SRGBColorSpace;
@@ -100,20 +104,24 @@ export class AssetLibrary {
           .loadAsync(`./assets/models/${name}.glb`)
           .then((gltf: any) => {
             const object = fitToHeight(gltf.scene, 2.1);
-            this.portraits[name] = renderPortrait(thumbnails, object);
-            this.templates[name] = { object, clips: gltf.animations };
-            object.position.set(
-              SHOWCASE_X[index]!,
-              0.55,
-              SHOWCASE_Z[index]!,
+            this.portraits[name] = renderPortrait(
+              thumbnails,
+              object,
+              gltf.animations,
+              name,
             );
+            this.templates[name] = { object, clips: gltf.animations };
+            object.position.set(SHOWCASE_X[index]!, 0.55, SHOWCASE_Z[index]!);
             object.rotation.y = index < 2 ? 0.4 : Math.PI + 0.3;
             island.add(object);
             const mixer = new THREE.AnimationMixer(object);
             const idle = gltf.animations.find((clip: any) =>
               /idle/i.test(clip.name),
             );
-            if (idle) mixer.clipAction(idle).play();
+            if (idle) {
+              mixer.clipAction(idle).play();
+              mixer.update(0);
+            }
             this.actors.push({ object, mixer });
           })
           .catch(() => this.failures.push(name))
@@ -137,19 +145,49 @@ function siteIdFor(team: "blue" | "red", type: string): number | null {
   return null;
 }
 
-function renderPortrait(renderer: any, object: any): HTMLImageElement {
+function renderPortrait(
+  renderer: any,
+  template: any,
+  clips: any[],
+  name: string,
+): HTMLImageElement {
+  // Posa uma cópia do esqueleto; o retrato não altera o ator nem os agentes.
+  const object = clone(template);
+  const poses: Record<string, readonly [string, number]> = {
+    Barbarian: ["Interact", 0.45],
+    Rogue_Hooded: ["Idle", 0.3],
+    Mage: ["Spellcasting", 0.3],
+    Knight: ["Blocking", 0.25],
+  };
+  const [pose, at] = poses[name]!;
+  const mixer = new THREE.AnimationMixer(object);
+  const clip = clips.find((candidate) => candidate.name === pose);
+  if (clip) {
+    mixer.clipAction(clip).play();
+    mixer.setTime(at);
+  }
+  object.updateMatrixWorld(true);
   const scene = new THREE.Scene();
   scene.add(new THREE.HemisphereLight(0xcdeaff, 0x596c87, 2.8));
   const light = new THREE.DirectionalLight(0xffe8c5, 3.5);
   light.position.set(-3, 5, 6);
   scene.add(light);
   scene.add(object);
-  const camera = new THREE.PerspectiveCamera(32, 256 / 300, 0.1, 30);
-  camera.position.set(2.4, 2.3, 5.8);
-  camera.lookAt(0, 1.1, 0);
+  const camera = new THREE.OrthographicCamera(
+    -1.05,
+    1.05,
+    1.23,
+    -1.23,
+    0.1,
+    30,
+  );
+  camera.position.set(2.1, 1.8, 6);
+  camera.lookAt(0, 1.08, 0);
   renderer.render(scene, camera);
   const image = new Image();
   image.src = renderer.domElement.toDataURL();
   scene.remove(object);
+  mixer.stopAllAction();
+  mixer.uncacheRoot(object);
   return image;
 }

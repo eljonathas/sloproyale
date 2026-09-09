@@ -26,7 +26,7 @@ test('client: tocar carta e construção mobiliza agente; entrega revisada atual
  await ana.lookup(code);ana.fields.name='Ana';ana.team(0);await ana.join();
  await bia.lookup(code);bia.fields.name='Bia';bia.team(1);await bia.join();await admin.action('start');await ana.refresh();await bia.refresh();
  assert.ok(!ana.draw().some(c=>/vote|reveal/.test(c.id)));assert.equal(ana.draw().find(c=>c.id==='deliver').disabled,true);
- await ana.click('card-builder');await ana.click('site-0');assert.equal(ana.state().teams[0].jobs.length,1);assert.equal(ana.state().teams[0].energy,9);
+ await ana.click('card-builder');await ana.click('site-0');assert.equal(ana.state().teams[0].jobs.length,1);assert.equal(ana.state().teams[0].energy,10);
  now+=STORY.buildSeconds*1000;arena.tick();await ana.refresh();await ana.click('card-reviewer');await ana.click('site-0');now+=STORY.reviewSeconds*1000;arena.tick();await ana.refresh();await ana.click('deliver');
  assert.equal(ana.state().teams[0].score,100);await bia.refresh();assert.equal(bia.state().teams[0].score,100);assert.equal(bia.state().teams[1].score,0);assert.equal(ana.state().phase,'playing');
 });
@@ -56,8 +56,8 @@ test('client: a prévia da carta na frente concorda com a decisão do servidor',
   'frente isolada':async c=>{await act(c,'worktree',0);},
   'frente protegida':async c=>{await act(c,'harness',0);},
   'checkout ocupado por outra frente':async c=>{await act(c,'builder',1);},
-  'tres agentes ocupados':async c=>{for(const s of [0,1,2])await act(c,'builder',s);},
-  'contexto no limite':async c=>{await act(c,'builder',1);await act(c,'builder',2);await act(c,'harness',1);await act(c,'worktree',2);},
+  'seis agentes ocupados':async c=>{for(const s of [0,1,2,0,1,2])await act(c,'builder',s);await advance(c,2/STORY.regen);},
+  'contexto no limite':async c=>{await act(c,'builder',1);await act(c,'builder',2);await act(c,'harness',1);await act(c,'worktree',2);await act(c,'harness',0);await act(c,'worktree',0);},
  };
  const checked=[];
  for(const [label,setup] of Object.entries(states))
@@ -156,4 +156,38 @@ test('client: a barra da obra nunca corre na frente do servidor, nem depois do b
  now+=1000;arena.tick();await c.refresh();
  assert.equal(c.state().teams[0].jobs.length,0,'o agente sai quando a obra fecha');
  assert.equal(c.progress(0),100);
+});
+
+test('client: preço, disponibilidade e cobrança concordam nos três níveis',async t=>{
+ const {arena}=await serve(t);const now=Date.now();arena.now=()=>now;
+ for(let level=0;level<3;level++)for(const cardId of ['builder','reviewer','worktree','harness'])for(const affordable of [false,true]) {
+  const c=await client();await c.create(true);
+  const room=arena.rooms.get(c.state().code),team=room.teams[0];
+  const cost=cardId==='builder'||cardId==='reviewer'?2+level:2;
+  team.sites.forEach(site=>site.level=level);
+  if(cardId==='reviewer')team.sites[0].built=100;
+  team.energy=affordable?cost:cost-1;
+  await c.refresh();
+  const preview=c.preview(cardId,0);
+  assert.equal(preview.cost,cost);assert.equal(preview.ok,affordable);
+  assert.equal(c.draw().find(k=>k.id==='card-'+cardId).disabled,!affordable);
+  if(affordable) {
+   await c.click('card-'+cardId);await c.click('site-0');
+   assert.equal(team.energy,0,`${cardId} no nível ${level+1}: cobra o preço exibido`);
+  }
+ }
+});
+
+test('client: frente cara não bloqueia carta que pode ser usada numa frente mais barata',async t=>{
+ const {arena}=await serve(t);const now=Date.now();arena.now=()=>now;const c=await client();await c.create(true);
+ const room=arena.rooms.get(c.state().code),team=room.teams[0];
+ team.sites[0].level=2;team.energy=2;
+ await c.refresh();
+ assert.equal(c.preview('builder',0).cost,4);assert.equal(c.preview('builder',0).ok,false);
+ assert.equal(c.preview('builder',1).cost,2);assert.equal(c.preview('builder',1).ok,true);
+ assert.equal(c.draw().find(k=>k.id==='card-builder').disabled,false);
+ await c.click('card-builder');await c.click('site-0');
+ assert.equal(team.jobs.length,0,'a frente cara recusa');assert.ok(team.energy>=2,'a recusa não consome contexto');
+ await c.click('card-builder');await c.click('site-1');
+ assert.equal(team.jobs.length,1);assert.equal(team.jobs[0].siteId,1);
 });

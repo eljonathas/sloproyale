@@ -114,8 +114,7 @@ export class SiteBanners {
             Math.max(box.y, action.y) +
             4;
           if (gapX <= 0 || gapY <= 0) continue;
-          box.x +=
-            box.x + box.w / 2 < action.x + action.w / 2 ? -gapX : gapX;
+          box.x += box.x + box.w / 2 < action.x + action.w / 2 ? -gapX : gapX;
         }
     }
     for (const box of boxes) box.x = clamp(box.x, 10, width - box.w - 10);
@@ -141,10 +140,8 @@ export class SiteBanners {
       for (let j = i + 1; j < boxes.length; j++) {
         const a = boxes[i]!;
         const b = boxes[j]!;
-        const gapX =
-          Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x) + 12;
-        const gapY =
-          Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y) + 6;
+        const gapX = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x) + 12;
+        const gapY = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y) + 6;
         if (gapX <= 0 || gapY <= 0) continue;
         const push = gapX / 2;
         a.x += a.x < b.x ? -push : push;
@@ -203,7 +200,18 @@ export class SiteBanners {
       "left",
       900,
     );
-    this.drawPips(x + w - 50, nameY, site.level);
+    if (preview && site.level < this.app.state!.story.maxLevel) {
+      painter.icon("gem", x + w - 36, nameY, mobile ? 15 : 18, "#c5a3ff");
+      painter.text(
+        preview.cost,
+        x + w - 17,
+        nameY,
+        mobile ? 13 : 16,
+        COLORS.cream,
+        "center",
+        900,
+      );
+    } else this.drawPips(x + w - 50, nameY, site.level);
 
     // Em repouso as insígnias viram ícones no fim da barra: o estado continua à
     // vista sem a placa crescer, e a cena 3D já mostra cerca, cúpula e falhas.
@@ -346,8 +354,24 @@ export class SiteBanners {
     const tag = `+${Math.round(speedup * 100)}% VELOCIDADE`;
     const tagW = painter.measure(tag, mobile ? 9 : 11, 900) + 20;
     const tagY = y - 12 - phase * 18;
-    painter.rect(x + w / 2 - tagW / 2, tagY - 9, tagW, 19, "#2e2107f2", 9, COLORS.gold);
-    painter.text(tag, x + w / 2, tagY + 1, mobile ? 9 : 11, COLORS.gold, "center", 900);
+    painter.rect(
+      x + w / 2 - tagW / 2,
+      tagY - 9,
+      tagW,
+      19,
+      "#2e2107f2",
+      9,
+      COLORS.gold,
+    );
+    painter.text(
+      tag,
+      x + w / 2,
+      tagY + 1,
+      mobile ? 9 : 11,
+      COLORS.gold,
+      "center",
+      900,
+    );
     ctx.restore();
   }
 
@@ -363,14 +387,27 @@ export class SiteBanners {
     let cursor = 12;
     const mark = (icon: string, color: string, label: string) => {
       painter.icon(icon, x + cursor + 6, line3, mobile ? 12 : 15, color);
-      painter.text(label, x + cursor + 14, line3, mobile ? 9 : 11, color, "left", 800);
-      cursor += (mobile ? 18 : 20) + painter.measure(label, mobile ? 9 : 11, 800);
+      painter.text(
+        label,
+        x + cursor + 14,
+        line3,
+        mobile ? 9 : 11,
+        color,
+        "left",
+        800,
+      );
+      cursor +=
+        (mobile ? 18 : 20) + painter.measure(label, mobile ? 9 : 11, 800);
     };
     const crew = team.jobs.filter(
       (job) => job.cardId === "builder" && job.siteId === site.id,
     ).length;
     if (crew > 1)
-      mark("tools", COLORS.gold, mobile ? `${crew} frentes` : `${crew} frentes · ${crew}×`);
+      mark(
+        "tools",
+        COLORS.gold,
+        mobile ? `${crew} frentes` : `${crew} frentes · ${crew}×`,
+      );
     if (site.worktrees)
       mark(
         "branch",
@@ -380,7 +417,11 @@ export class SiteBanners {
     if (site.harness)
       mark("shield", COLORS.blue, mobile ? "protegida" : "harness");
     if (site.faults)
-      mark("gem", COLORS.red, mobile ? `${site.faults} falha` : `${site.faults} falha(s)`);
+      mark(
+        "gem",
+        COLORS.red,
+        mobile ? `${site.faults} falha` : `${site.faults} falha(s)`,
+      );
     if (cursor > 12) return;
 
     painter.text(

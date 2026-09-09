@@ -3,9 +3,8 @@ import * as THREE from "three";
 /**
  * Fábrica de blocos do diorama.
  *
- * Todo o cenário é feito de caixas, e materiais iguais são reaproveitados: sem
- * o cache, cada arbusto criaria um material próprio e a cena passaria de mil
- * materiais para desenhar a mesma coisa.
+ * Caixas e materiais compartilhados pelas construções e pelo terreno. O cache
+ * evita criar um material novo para cada pedra, arbusto ou peça de andaime.
  */
 export class MeshFactory {
   private readonly materials = new Map<number, any>();
