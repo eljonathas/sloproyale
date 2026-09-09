@@ -1,40 +1,27 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
-import vm from 'node:vm';
-import { createServer } from '../server.mjs';
-import { QUESTIONS, STORY } from '../src/missions.mjs';
+import { createServer } from '../dist/server.js';
+import { QUESTIONS } from '../dist/content/questions.js';
+import { STORY } from '../dist/content/story.js';
+import { installBrowser, makeClient } from './harness.mjs';
 
-// Exercises the real client actions against HTTP. Canvas and the DOM are replaced
-// only as rendering surfaces; game rules, requests and state transitions are real.
-async function client(base) {
- const source=(await readFile(new URL('../src/client.js',import.meta.url),'utf8')).replace(/import\('\.\/scene\.js'\)[^\n]+/,'');
- const noop=()=>{},listeners={};
- const ctx=new Proxy({measureText:s=>({width:String(s).length*8}),createLinearGradient:()=>({addColorStop:noop})},{get:(o,k)=>o[k]??noop,set:(o,k,v)=>(o[k]=v,true)});
- const canvas={getContext:()=>ctx,style:{},addEventListener:(name,fn)=>listeners[name]=fn,focus:noop};const element={addEventListener:noop,blur:noop,focus:noop,setAttribute:noop,replaceChildren:noop};
- const context=vm.createContext({document:{querySelector:s=>s==='#game'?canvas:{...element},fonts:{load:async()=>{}},createElement:()=>({...element})},innerWidth:1440,innerHeight:900,devicePixelRatio:1,matchMedia:()=>({matches:true}),addEventListener:noop,sessionStorage:{getItem:()=>null,setItem:noop},performance:{now:()=>0},requestAnimationFrame:noop,URL,URLSearchParams,location:{origin:base,search:'',host:new URL(base).host},history:{replaceState:noop},Date,console,
- listeners,fetch:(url,options)=>fetch(new URL(url,base),options),EventSource:class{close(){}},Image:class{}});
- return vm.runInContext(`(async()=>{${source}
- // O relógio avança a cada quadro: sem isso as animações ficam paradas no
- // primeiro instante e os controles com entrada animada nunca habilitam.
- let __clock=1000;const __step=()=>(__clock+=600);
- return {
- create,lookup,join,action,apply,api,
- pointer:(name,event)=>listeners[name](event),fields, state:()=>state, key:()=>key,
- team:(id)=>teamSelection=id,
- draw:()=>{draw(__step());return controls.map(c=>({id:c.id,disabled:c.disabled,label:c.label,x:c.x,y:c.y,w:c.w,h:c.h}));},
- click:async(id)=>{draw(__step());const control=controls.find(c=>c.id===id);if(!control||control.disabled)throw Error('Control unavailable: '+id);await control.fn();},
- refresh:async()=>apply((await api('/api/rooms/'+state.code)).state),
- progress:(siteId)=>{const t=viewTeam();return buildProgress(t,t.sites[siteId],elapsed());},
- preview:(cardId,siteId)=>{const team=viewTeam();return previewPlay(state.cards.find(c=>c.id===cardId),team.sites[siteId],team,currentEnergy(team));},
- toast:()=>toast
- };})()`,context);
+// Exercita as classes reais do cliente contra HTTP. Só a superfície do
+// navegador é substituída; regras, pedidos e transições de estado são reais.
+let client;
+function serve(t) {
+ const {server,arena}=createServer();
+ t.after(()=>{server.closeAllConnections();server.close();});
+ return new Promise(resolve=>server.listen(0,'127.0.0.1',()=>{
+  const base=`http://127.0.0.1:${server.address().port}`;
+  installBrowser(base);
+  client=makeClient;
+  resolve({server,arena,base});
+ }));
 }
 
 test('client: tocar carta e construção mobiliza agente; entrega revisada atualiza o placar dos celulares',async t=>{
- const {server,arena}=createServer();let now=Date.now();arena.now=()=>now;
- await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(()=>{server.closeAllConnections();server.close();});const base=`http://127.0.0.1:${server.address().port}`;
- const admin=await client(base),ana=await client(base),bia=await client(base);
+ const {arena}=await serve(t);let now=Date.now();arena.now=()=>now;
+ const admin=await client(),ana=await client(),bia=await client();
  admin.fields.participants=4;admin.fields.teamSize=2;await admin.create();const code=admin.state().code;
  await ana.lookup(code);ana.fields.name='Ana';ana.team(0);await ana.join();
  await bia.lookup(code);bia.fields.name='Bia';bia.team(1);await bia.join();await admin.action('start');await ana.refresh();await bia.refresh();
@@ -45,7 +32,7 @@ test('client: tocar carta e construção mobiliza agente; entrega revisada atual
 });
 
 test('client: arrastar a carta e soltar no alvo cria uma tarefa, sem botão de confirmar resposta',async t=>{
- const {server}=createServer();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(()=>{server.closeAllConnections();server.close();});const c=await client(`http://127.0.0.1:${server.address().port}`);
+ await serve(t);const c=await client();
  await c.create(true);const controls=c.draw(),card=controls.find(c=>c.id==='card-builder'),site=controls.find(c=>c.id==='site-2');
  const event=(x,y)=>({clientX:x,clientY:y,pointerId:1,preventDefault:()=>{}});
  c.pointer('pointerdown',event(card.x+card.w/2,card.y+card.h/2));c.draw();c.pointer('pointermove',event(site.x+site.w/2,site.y+site.h/2));await c.pointer('pointerup',event(site.x+site.w/2,site.y+site.h/2));
@@ -56,9 +43,7 @@ test('client: arrastar a carta e soltar no alvo cria uma tarefa, sem botão de c
 // antes da jogada. Este teste cruza as duas: se uma regra do servidor mudar sem
 // a prévia acompanhar, a interface passa a prometer o que o servidor recusa.
 test('client: a prévia da carta na frente concorda com a decisão do servidor',async t=>{
- const {server,arena}=createServer();let now=Date.now();arena.now=()=>now;
- await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(()=>{server.closeAllConnections();server.close();});
- const base=`http://127.0.0.1:${server.address().port}`;
+ const {arena}=await serve(t);let now=Date.now();arena.now=()=>now;
  const advance=async(c,seconds)=>{now+=seconds*1000;arena.tick();await c.refresh();};
  // Cada Construtor ou Revisor abre uma pergunta que toma o lugar do baralho.
  // Aqui ela é dispensada pelo mesmo botão que a pessoa usaria.
@@ -77,7 +62,7 @@ test('client: a prévia da carta na frente concorda com a decisão do servidor',
  const checked=[];
  for(const [label,setup] of Object.entries(states))
   for(const cardId of ['builder','worktree','reviewer','harness']){
-   const c=await client(base);
+   const c=await client();
    await c.create(true);
    await setup(c);
    const preview=c.preview(cardId,0);
@@ -98,9 +83,8 @@ test('client: a prévia da carta na frente concorda com a decisão do servidor',
 // A janela do estudo é o único caminho para o bônus, então ela precisa abrir
 // sozinha, aceitar teclado, poder sair da frente do baralho e revelar o porquê.
 test('client: a pergunta abre com o agente, some do baralho e devolve o bônus',async t=>{
- const {server,arena}=createServer();let now=Date.now();arena.now=()=>now;
- await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(()=>{server.closeAllConnections();server.close();});
- const c=await client(`http://127.0.0.1:${server.address().port}`);
+ const {arena}=await serve(t);let now=Date.now();arena.now=()=>now;
+ const c=await client();
  await c.create(true);
  assert.ok(!c.draw().some(k=>k.id.startsWith('quiz-')),'sem agente em campo não há pergunta');
  await c.click('card-builder');await c.click('site-0');
@@ -139,9 +123,8 @@ test('client: a pergunta abre com o agente, some do baralho e devolve o bônus',
 // agente continuava em campo depois dela cheia — mais visível após um acerto,
 // que encurta o relógio da tarefa sem mover o startedAt.
 test('client: a barra da obra nunca corre na frente do servidor, nem depois do boost',async t=>{
- const {server,arena}=createServer();let now=Date.now();arena.now=()=>now;
- await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(()=>{server.closeAllConnections();server.close();});
- const c=await client(`http://127.0.0.1:${server.address().port}`);
+ const {arena}=await serve(t);let now=Date.now();arena.now=()=>now;
+ const c=await client();
  await c.create(true);
  await c.click('card-builder');await c.click('site-0');
  const near=(label,tolerance=0.5)=>{

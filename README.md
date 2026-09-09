@@ -4,7 +4,8 @@ Jogo multiplayer em tempo real para acompanhar a apresentação *Orquestrando Ag
 
 ## Rodar
 
-Requer Node.js 22 ou posterior. Não é necessário instalar pacotes.
+Requer Node.js 22 ou posterior. **Para jogar não é necessário instalar nada**: o
+JavaScript compilado está versionado em `dist/`.
 
 ```sh
 npm start
@@ -67,14 +68,47 @@ A placa de cada frente fica pequena em repouso — nome, nível e uma barra fina
 
 Use toque ou mouse. No teclado: Tab/Shift+Tab navegam, Enter confirma, 1 a 4 selecionam cartas, Escape fecha os painéis. O som é opcional e a preferência de redução de movimento é respeitada.
 
-- `agent-arena.html`: entrada e contêiner dos canvases.
-- `src/client.js`: interface, interação e sincronização.
-- `src/scene.js`: diorama, enquadramento da câmera, agentes e efeitos das cartas.
-- `src/game.mjs`: regras e estado autoritativo.
-- `src/missions.mjs`: cartas, frentes, parâmetros e o banco de perguntas; **não é servido ao navegador**, e o snapshot só revela a alternativa correta e a explicação depois que a pessoa responde.
-- `server.mjs`: servidor HTTP e stream de eventos, usando apenas a biblioteca padrão do Node.js.
+### Código
 
-O cliente reproduz as regras de jogada em `previewPlay` só para antecipar a leitura na arena. O servidor continua sendo quem aceita ou recusa; ao mudar uma regra em `game.mjs`, ajuste a prévia junto.
+O projeto é TypeScript, organizado em classes. As fontes ficam em `src/` e o
+build vai para `dist/`, que é versionado para que a apresentação não dependa de
+`npm install`. Para editar:
+
+```sh
+npm install     # só na primeira vez, e só para desenvolver
+npm run build   # compila src/ para dist/
+npm run check   # tipos, sem gerar arquivos
+npm test        # compila e roda os 23 testes
+```
+
+```
+src/
+  shared/protocol.ts   O contrato entre servidor e navegador. Só interfaces:
+                       o arquivo compilado não carrega valor nenhum.
+  content/             Cartas, frentes, parâmetros e o banco de perguntas.
+  game/                As regras. Site, Job, Team, Room e Arena.
+  server.ts            HTTP, stream de eventos e arquivos estáticos.
+  client/
+    app.ts             AgentArena: o que atravessa telas.
+    loop.ts            O laço de render, separado da entrada do programa.
+    painter.ts         As primitivas de desenho 2D.
+    controls.ts        Áreas clicáveis, foco do teclado e espelho acessível.
+    session.ts         Estado publicado, chaves, stream e chamadas de API.
+    rules.ts           Prévia da jogada e projeção da obra.
+    screens/           Home, Lobby, Battle, Results e os painéis sobrepostos.
+    battle/            Placas das frentes, janela do estudo e painéis laterais.
+    scene/             World, CameraRig, Island, SiteZone, AgentCrew.
+```
+
+**O gabarito não é servido.** O servidor publica apenas `agent-arena.html`,
+`assets/` e `dist/client/`. `dist/content/` e `dist/game/` — onde vivem as
+respostas e as regras — respondem 404, e um teste percorre essa lista.
+
+A divisão que mais importa é `shared/protocol.ts`: antes dela o cliente lia
+`state.teams[0].jobs[0].question.answer` sem garantia de que o campo existia.
+Agora servidor e navegador compartilham a mesma definição do que trafega.
+
+O cliente reproduz as regras de jogada em `client/rules.ts` (`PlayPreview`) só para antecipar a leitura na arena. O servidor continua sendo quem aceita ou recusa; ao mudar uma regra em `game/`, ajuste a prévia junto — um teste cruza as duas decisões em 36 combinações e falha se elas divergirem.
 
 Salas e placares ficam na memória do servidor. Recarregar a página preserva o acesso na mesma aba. **Reiniciar o servidor encerra as salas.** Se hospedar atrás de um proxy, configure `PUBLIC_URL` com a URL acessível aos participantes.
 
@@ -84,7 +118,7 @@ Salas e placares ficam na memória do servidor. Recarregar a página preserva o 
 npm test
 ```
 
-Vinte e dois testes cobrem regras, limite e equilíbrio das guildas, autorização do admin, proteção dos parâmetros, relógio, pausa, conflito de checkout, frentes paralelas e o custo de integração, campanha completa, HTTP, stream de eventos, ações reais do cliente contra o servidor a concordância entre a prévia da carta e a decisão do servidor em 36 combinações, e o estudo em campo: o gabarito que não sai do servidor, o bônus e a aceleração do acerto, a explicação no erro, quem pode responder e a ordem das perguntas por guilda.
+Vinte e três testes cobrem regras, limite e equilíbrio das guildas, autorização do admin, proteção dos parâmetros, relógio, pausa, conflito de checkout, frentes paralelas e o custo de integração, campanha completa, HTTP, stream de eventos, ações reais do cliente contra o servidor a concordância entre a prévia da carta e a decisão do servidor em 36 combinações, e o estudo em campo: o gabarito que não sai do servidor, o bônus e a aceleração do acerto, a explicação no erro, quem pode responder e a ordem das perguntas por guilda.
 
 As telas foram conferidas em navegador real, em tamanho de computador e de celular: mapa, prévia das cartas, ciclo de vida dos agentes, worktree, harness, a visão de uma guilda com duas pessoas os dois desfechos da pergunta com o efeito de aceleração na barra da obra, e dois Construtores dividindo a mesma obra.
 

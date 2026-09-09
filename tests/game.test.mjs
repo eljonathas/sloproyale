@@ -1,22 +1,23 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Arena } from '../src/game.mjs';
-import { QUESTIONS, STORY, STUDY } from '../src/missions.mjs';
+import { Arena } from '../dist/game/arena.js';
+import { QUESTIONS } from '../dist/content/questions.js';
+import { STORY, STUDY } from '../dist/content/story.js';
 const INTEGRATE=STORY.integrationSeconds;
 const BUILD=STORY.buildSeconds,REVIEW=STORY.reviewSeconds;
-import { createServer } from '../server.mjs';
+import { createServer } from '../dist/server.js';
 
 function fixture({participants=4,teamSize=2,duration=180,practice=false}={}){
  let now=1000;const arena=new Arena({now:()=>now}),room=arena.create({participants,teamSize,duration,practice});
  const players=Array.from({length:practice?1:participants},(_,i)=>arena.join(room,{name:'Pessoa '+i,teamId:i%room.teams.length}));
- arena.start(room,room.admin);
+ arena.action(room,room.admin,'start');
  return {arena,room,players,team:room.teams[0],wait:seconds=>{now+=seconds*1000;arena.tick();},jump:seconds=>now+=seconds*1000,play:(cardId,siteId=0,p=players[0])=>arena.action(room,p.key,'play',{cardId,siteId}),deliver:(siteId=0)=>arena.action(room,players[0].key,'deliver',{siteId}),answer:(jobId,option,p=players[0])=>arena.action(room,p.key,'answer',{jobId,option}),ask:(job)=>QUESTIONS.find(q=>q.id===job.questionId)};
 }
 test('equilibra vagas e recursos entre guildas de tamanhos diferentes',()=>{
  const arena=new Arena();for(let participants=4;participants<=80;participants++){const room=arena.create({participants,teamSize:5});assert.equal(room.teams.reduce((n,t)=>n+t.capacity,0),participants);assert.ok(Math.max(...room.teams.map(t=>t.capacity))-Math.min(...room.teams.map(t=>t.capacity))<=1);assert.ok(room.teams.every(t=>t.energy===12));}assert.throws(()=>arena.create({participants:80,teamSize:2}),/16 times/);
 });
 test('lobby: vagas, nomes, troca e autorização do orquestrador',()=>{
- const arena=new Arena(),room=arena.create({participants:4,teamSize:2});const a=arena.join(room,{name:'Ana',teamId:0});arena.join(room,{name:'Bia',teamId:0});assert.throws(()=>arena.join(room,{name:'Caio',teamId:0}),/cheio/);assert.throws(()=>arena.join(room,{name:'ana',teamId:1}),/já está/);assert.throws(()=>arena.start(room,a.key),/orquestrador/);assert.throws(()=>arena.start(room,room.admin),/pelo menos/);arena.join(room,{name:'Ana',teamId:1},a.key);arena.start(room,room.admin);assert.throws(()=>arena.join(room,{name:'Caio',teamId:1}),/já começou/);
+ const arena=new Arena(),room=arena.create({participants:4,teamSize:2});const a=arena.join(room,{name:'Ana',teamId:0});arena.join(room,{name:'Bia',teamId:0});assert.throws(()=>arena.join(room,{name:'Caio',teamId:0}),/cheio/);assert.throws(()=>arena.join(room,{name:'ana',teamId:1}),/já está/);assert.throws(()=>arena.action(room,a.key,'start'),/orquestrador/);assert.throws(()=>arena.action(room,room.admin,'start'),/pelo menos/);arena.join(room,{name:'Ana',teamId:1},a.key);arena.action(room,room.admin,'start');assert.throws(()=>arena.join(room,{name:'Caio',teamId:1}),/já começou/);
 });
 test('construção e revisão levam tempo; só a entrega gera pontos e não pode ser repetida',()=>{
  const f=fixture();f.play('builder');assert.equal(f.team.energy,9);assert.equal(f.team.jobs.length,1);assert.equal(f.team.score,0);f.wait(BUILD-1);assert.ok(f.team.sites[0].built>90&&f.team.sites[0].built<100,'a obra avança continuamente');f.wait(1);assert.equal(f.team.sites[0].built,100);assert.equal(f.team.jobs.length,0);f.play('reviewer');f.wait(REVIEW);assert.equal(f.team.sites[0].reviewed,true);assert.equal(f.team.score,0);f.deliver();assert.equal(f.team.score,100);assert.equal(f.team.sites[0].level,1);assert.throws(()=>f.deliver(),/não terminou/);assert.equal(f.team.score,100);
@@ -90,8 +91,11 @@ test('HTTP: estado ao vivo, recursos locais e regras não expostas como arquivos
  const data=await(await request('/api/rooms',{participants:4,teamSize:2})).json();const code=data.state.code;
  const joined=await(await request(`/api/rooms/${code}/join`,{name:'Ana',teamId:0})).json();assert.ok(joined.key);assert.equal(joined.state.cards.length,4);assert.ok(!JSON.stringify(joined.state).includes(data.key));
  const abort=new AbortController();const stream=await fetch(`${base}/api/rooms/${code}/events?key=${joined.key}`,{signal:abort.signal});assert.match(stream.headers.get('content-type'),/event-stream/);assert.match(new TextDecoder().decode((await stream.body.getReader().read()).value),/Ana/);abort.abort();
- for(const path of ['/','/src/client.js','/assets/models/Knight.glb','/assets/utils/SkeletonUtils.js'])assert.equal((await request(path)).status,200);
- for(const path of ['/src/missions.mjs','/server.mjs','/assets/..%2fsrc/missions.mjs'])assert.equal((await request(path)).status,404);
+ for(const path of ['/','/assets/models/Knight.glb','/assets/utils/SkeletonUtils.js'])assert.equal((await request(path)).status,200);
+ // O gabarito e as regras moram fora do que o servidor publica. Se algum dia
+ // alguém acrescentar dist/ inteiro à lista de arquivos servidos, isto quebra.
+ for(const path of ['/src/content/questions.ts','/src/game/arena.ts','/dist/content/questions.js','/dist/content/story.js','/dist/game/arena.js','/dist/game/room.js','/dist/server.js','/package.json','/assets/..%2fdist/content/questions.js'])
+  assert.equal((await request(path)).status,404,path+' não pode ser baixável');
 });
 
 test('a pergunta acompanha o agente e a chave da resposta não sai do servidor',()=>{
