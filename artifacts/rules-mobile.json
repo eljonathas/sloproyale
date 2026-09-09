@@ -1,0 +1,24 @@
+{
+  "controls": [
+    {
+      "id": "close",
+      "x": 360,
+      "y": 134.28205128205133,
+      "w": 36,
+      "h": 32,
+      "label": "×",
+      "disabled": false
+    },
+    {
+      "id": "understood",
+      "x": 42,
+      "y": 738.2820512820513,
+      "w": 346,
+      "h": 47,
+      "label": "Vamos à arena",
+      "disabled": false
+    }
+  ],
+  "W": 430,
+  "H": 930.5641025641027
+}

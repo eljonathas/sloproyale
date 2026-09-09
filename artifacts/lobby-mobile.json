@@ -1,0 +1,87 @@
+{
+  "controls": [
+    {
+      "id": "tool-help",
+      "x": 361,
+      "y": 8,
+      "w": 38,
+      "h": 38,
+      "label": "?",
+      "disabled": false
+    },
+    {
+      "id": "name",
+      "x": 20,
+      "y": 188,
+      "w": 390,
+      "h": 50,
+      "label": "Como você quer ser chamado?",
+      "disabled": false
+    },
+    {
+      "id": "team-0",
+      "x": 20,
+      "y": 273,
+      "w": 188,
+      "h": 142,
+      "label": "Aurora, 4 de 6 vagas, seu time",
+      "disabled": false
+    },
+    {
+      "id": "team-1",
+      "x": 222,
+      "y": 273,
+      "w": 188,
+      "h": 142,
+      "label": "Brasa, 4 de 6 vagas",
+      "disabled": false
+    },
+    {
+      "id": "team-2",
+      "x": 20,
+      "y": 431,
+      "w": 188,
+      "h": 142,
+      "label": "Arcana, 4 de 6 vagas",
+      "disabled": false
+    },
+    {
+      "id": "team-3",
+      "x": 222,
+      "y": 431,
+      "w": 188,
+      "h": 142,
+      "label": "Bosque, 4 de 6 vagas",
+      "disabled": false
+    },
+    {
+      "id": "join-team",
+      "x": 20,
+      "y": 804.5641025641027,
+      "w": 390,
+      "h": 55,
+      "label": "Entrar na guilda Aurora",
+      "disabled": true
+    },
+    {
+      "id": "copy-mobile",
+      "x": 20,
+      "y": 876.5641025641027,
+      "w": 190,
+      "h": 34,
+      "label": "Copiar convite",
+      "disabled": false
+    },
+    {
+      "id": "roster",
+      "x": 224,
+      "y": 876.5641025641027,
+      "w": 186,
+      "h": 34,
+      "label": "Participantes",
+      "disabled": false
+    }
+  ],
+  "W": 430,
+  "H": 930.5641025641027
+}

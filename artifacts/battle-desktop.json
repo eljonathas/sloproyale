@@ -1,0 +1,69 @@
+{
+  "controls": [
+    {
+      "id": "tool-sound",
+      "x": 1273,
+      "y": 20,
+      "w": 38,
+      "h": 38,
+      "label": "Som desligado",
+      "disabled": false
+    },
+    {
+      "id": "tool-expand",
+      "x": 1322,
+      "y": 20,
+      "w": 38,
+      "h": 38,
+      "label": "Tela cheia",
+      "disabled": false
+    },
+    {
+      "id": "tool-help",
+      "x": 1371,
+      "y": 20,
+      "w": 38,
+      "h": 38,
+      "label": "Como jogar",
+      "disabled": false
+    },
+    {
+      "id": "card-0",
+      "x": 116,
+      "y": 632,
+      "w": 392,
+      "h": 174,
+      "label": "1. Todos em tudo. Mandar dois agentes construírem tudo, no mesmo território.",
+      "disabled": false
+    },
+    {
+      "id": "card-1",
+      "x": 526,
+      "y": 632,
+      "w": 392,
+      "h": 174,
+      "label": "2. Delegar com contrato. Separar escopos, definir a interface e consolidar os resultados.",
+      "disabled": false
+    },
+    {
+      "id": "card-2",
+      "x": 936,
+      "y": 632,
+      "w": 392,
+      "h": 174,
+      "label": "3. Fazer em sequência. Um agente ergue a muralha e só depois constrói o portal.",
+      "disabled": false
+    },
+    {
+      "id": "vote",
+      "x": 478,
+      "y": 837,
+      "w": 484,
+      "h": 43,
+      "label": "Selecione uma carta",
+      "disabled": true
+    }
+  ],
+  "W": 1440,
+  "H": 900
+}

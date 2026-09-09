@@ -1,0 +1,60 @@
+{
+  "controls": [
+    {
+      "id": "tool-help",
+      "x": 361,
+      "y": 8,
+      "w": 38,
+      "h": 38,
+      "label": "?",
+      "disabled": false
+    },
+    {
+      "id": "mobile-ranking",
+      "x": 20,
+      "y": 350,
+      "w": 128,
+      "h": 34,
+      "label": "Ver placar",
+      "disabled": false
+    },
+    {
+      "id": "card-0",
+      "x": 18,
+      "y": 606.5641025641027,
+      "w": 394,
+      "h": 78,
+      "label": "1. Todos em tudo. Mandar dois agentes construírem tudo, no mesmo território.",
+      "disabled": false
+    },
+    {
+      "id": "card-1",
+      "x": 18,
+      "y": 696.5641025641027,
+      "w": 394,
+      "h": 78,
+      "label": "2. Delegar com contrato. Separar escopos, definir a interface e consolidar os resultados.",
+      "disabled": false
+    },
+    {
+      "id": "card-2",
+      "x": 18,
+      "y": 786.5641025641027,
+      "w": 394,
+      "h": 78,
+      "label": "3. Fazer em sequência. Um agente ergue a muralha e só depois constrói o portal.",
+      "disabled": false
+    },
+    {
+      "id": "vote",
+      "x": 18,
+      "y": 882.5641025641027,
+      "w": 394,
+      "h": 43,
+      "label": "Selecione uma carta",
+      "disabled": true
+    }
+  ],
+  "W": 430,
+  "H": 930.5641025641027
+}

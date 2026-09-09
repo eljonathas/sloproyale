@@ -1,0 +1,96 @@
+{
+  "controls": [
+    {
+      "id": "tool-sound",
+      "x": 1273,
+      "y": 20,
+      "w": 38,
+      "h": 38,
+      "label": "Som desligado",
+      "disabled": false
+    },
+    {
+      "id": "tool-expand",
+      "x": 1322,
+      "y": 20,
+      "w": 38,
+      "h": 38,
+      "label": "Tela cheia",
+      "disabled": false
+    },
+    {
+      "id": "tool-help",
+      "x": 1371,
+      "y": 20,
+      "w": 38,
+      "h": 38,
+      "label": "Como jogar",
+      "disabled": false
+    },
+    {
+      "id": "team-0",
+      "x": 68,
+      "y": 330,
+      "w": 210,
+      "h": 184,
+      "label": "Aurora, 4 de 6 vagas, seu time",
+      "disabled": true
+    },
+    {
+      "id": "team-1",
+      "x": 295,
+      "y": 330,
+      "w": 210,
+      "h": 184,
+      "label": "Brasa, 4 de 6 vagas",
+      "disabled": true
+    },
+    {
+      "id": "team-2",
+      "x": 522,
+      "y": 330,
+      "w": 210,
+      "h": 184,
+      "label": "Arcana, 4 de 6 vagas",
+      "disabled": true
+    },
+    {
+      "id": "team-3",
+      "x": 749,
+      "y": 330,
+      "w": 210,
+      "h": 184,
+      "label": "Bosque, 4 de 6 vagas",
+      "disabled": true
+    },
+    {
+      "id": "invite",
+      "x": 1060,
+      "y": 514,
+      "w": 286,
+      "h": 48,
+      "label": "Copiar link da sala",
+      "disabled": false
+    },
+    {
+      "id": "start",
+      "x": 1035,
+      "y": 657,
+      "w": 336,
+      "h": 55,
+      "label": "Iniciar a reconstrução",
+      "disabled": false
+    },
+    {
+      "id": "roster",
+      "x": 1035,
+      "y": 778,
+      "w": 336,
+      "h": 43,
+      "label": "Ver participantes",
+      "disabled": false
+    }
+  ],
+  "W": 1440,
+  "H": 900
+}

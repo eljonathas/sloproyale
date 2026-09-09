@@ -1,0 +1,96 @@
+{
+  "controls": [
+    {
+      "id": "close",
+      "x": 360,
+      "y": 170.78205128205133,
+      "w": 36,
+      "h": 32,
+      "label": "×",
+      "disabled": false
+    },
+    {
+      "id": "participants-",
+      "x": 43,
+      "y": 347.7820512820513,
+      "w": 48,
+      "h": 43,
+      "label": "−",
+      "disabled": false
+    },
+    {
+      "id": "participants+",
+      "x": 155,
+      "y": 347.7820512820513,
+      "w": 48,
+      "h": 43,
+      "label": "+",
+      "disabled": false
+    },
+    {
+      "id": "teamSize-",
+      "x": 227,
+      "y": 347.7820512820513,
+      "w": 48,
+      "h": 43,
+      "label": "−",
+      "disabled": false
+    },
+    {
+      "id": "teamSize+",
+      "x": 339,
+      "y": 347.7820512820513,
+      "w": 48,
+      "h": 43,
+      "label": "+",
+      "disabled": false
+    },
+    {
+      "id": "duration-30",
+      "x": 43,
+      "y": 552.7820512820513,
+      "w": 82,
+      "h": 42,
+      "label": "30 s",
+      "disabled": false
+    },
+    {
+      "id": "duration-45",
+      "x": 129,
+      "y": 552.7820512820513,
+      "w": 82,
+      "h": 42,
+      "label": "45 s",
+      "disabled": false
+    },
+    {
+      "id": "duration-60",
+      "x": 215,
+      "y": 552.7820512820513,
+      "w": 82,
+      "h": 42,
+      "label": "60 s",
+      "disabled": false
+    },
+    {
+      "id": "duration-90",
+      "x": 301,
+      "y": 552.7820512820513,
+      "w": 82,
+      "h": 42,
+      "label": "90 s",
+      "disabled": false
+    },
+    {
+      "id": "open-room",
+      "x": 42,
+      "y": 696.7820512820513,
+      "w": 346,
+      "h": 51,
+      "label": "Abrir sala para a turma",
+      "disabled": false
+    }
+  ],
+  "W": 430,
+  "H": 930.5641025641027
+}

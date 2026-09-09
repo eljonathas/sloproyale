@@ -1,0 +1,60 @@
+{
+  "controls": [
+    {
+      "id": "tool-sound",
+      "x": 1273,
+      "y": 20,
+      "w": 38,
+      "h": 38,
+      "label": "Som desligado",
+      "disabled": false
+    },
+    {
+      "id": "tool-expand",
+      "x": 1322,
+      "y": 20,
+      "w": 38,
+      "h": 38,
+      "label": "Tela cheia",
+      "disabled": false
+    },
+    {
+      "id": "tool-help",
+      "x": 1371,
+      "y": 20,
+      "w": 38,
+      "h": 38,
+      "label": "Como jogar",
+      "disabled": false
+    },
+    {
+      "id": "create",
+      "x": 80,
+      "y": 551,
+      "w": 360,
+      "h": 61,
+      "label": "Criar uma arena",
+      "disabled": false
+    },
+    {
+      "id": "join",
+      "x": 80,
+      "y": 632,
+      "w": 223,
+      "h": 51,
+      "label": "Entrar com código",
+      "disabled": false
+    },
+    {
+      "id": "practice",
+      "x": 316,
+      "y": 632,
+      "w": 124,
+      "h": 51,
+      "label": "Treinar",
+      "disabled": false
+    }
+  ],
+  "W": 1440,
+  "H": 900
+}
