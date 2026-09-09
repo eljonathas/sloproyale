@@ -2,6 +2,29 @@ import * as THREE from "three";
 import { GLTFLoader } from "../assets/vendor/GLTFLoader.js";
 import { clone } from "../assets/utils/SkeletonUtils.js";
 
+// Ângulo do diorama. A vista de batalha usa o mesmo ângulo da vitrine para que
+// o tabuleiro fique na diagonal: assim as três frentes se afastam na horizontal,
+// que é o eixo com sobra numa tela de computador.
+const AZIMUTH = Math.PI / 4;
+const CAMERA_HEIGHT = 30;
+const CAMERA_RADIUS = 32;
+// Eixos de tela da câmera ortográfica. A direção é fixa, então dá para medir o
+// tabuleiro contra eles uma única vez, sem depender do estado da câmera.
+const CAMERA_LENGTH = Math.hypot(CAMERA_RADIUS, CAMERA_HEIGHT);
+const FLATTEN = CAMERA_HEIGHT / CAMERA_LENGTH;
+const RISE = CAMERA_RADIUS / CAMERA_LENGTH;
+const RIGHT = new THREE.Vector3(Math.cos(AZIMUTH), 0, -Math.sin(AZIMUTH));
+const UP = new THREE.Vector3(
+  -FLATTEN * Math.sin(AZIMUTH),
+  RISE,
+  -FLATTEN * Math.cos(AZIMUTH),
+);
+const SITE_COORDS = [
+  [-5.6, -8.4],
+  [0, 10.4],
+  [5.6, -8.4],
+];
+
 export async function createWorld(canvas) {
   const renderer = new THREE.WebGLRenderer({
     canvas,
@@ -72,7 +95,8 @@ export async function createWorld(canvas) {
           0.34,
           z,
         );
-  // Faceted underside makes the battlefield a floating diorama.
+  // Faceted underside makes the battlefield a floating diorama. It sits outside
+  // the play area, so it is excluded when the camera frames the board.
   const rock = new THREE.Mesh(
     new THREE.CylinderGeometry(15, 8, 6, 7),
     material(0x344f65),
@@ -80,6 +104,7 @@ export async function createWorld(canvas) {
   rock.scale.set(1, 1, 1.12);
   rock.position.set(0, -5, 0);
   rock.rotation.y = 0.2;
+  rock.userData.decor = true;
   island.add(rock);
   const river = box(22, 0.16, 3.2, 0x3ebde3, 0, 0.38, 0);
   river.material = new THREE.MeshStandardMaterial({
@@ -160,6 +185,7 @@ export async function createWorld(canvas) {
     templates = {},
     crew = new Map();
   let targetPoints = [],
+    agentPoints = [],
     visibleTeam = null;
   function fit(obj, height) {
     const bounds = new THREE.Box3().setFromObject(obj);
@@ -220,6 +246,7 @@ export async function createWorld(canvas) {
             buildings.push({
               obj,
               scale: obj.scale.y,
+              height: type === "castle" ? 5.1 : 3.3,
               siteId:
                 team === "blue" && type === "tower_A"
                   ? 0
@@ -292,17 +319,95 @@ export async function createWorld(canvas) {
     island.add(gem);
     beacons.push(gem);
   }
-  const siteCoords = [
-    [-5.6, -8.4],
-    [0, 10.4],
-    [5.6, -8.4],
-  ];
+  const siteCoords = SITE_COORDS;
+  // Acampamento da guilda: os agentes precisam sair de algum lugar. Sem ele a
+  // unidade aparecia e sumia no meio do campo, o que lia como falha de render.
+  const CAMP = new THREE.Vector3(6.6, 0.55, 7.4);
+  const camp = new THREE.Group();
+  camp.position.set(CAMP.x, 0, CAMP.z);
+  island.add(camp);
+  box(4.2, 0.32, 4.2, 0x9c8a6d, 0, 0.46, 0, camp);
+  box(3.7, 0.1, 3.7, 0xb9a27e, 0, 0.66, 0, camp);
+  for (const [tx, tz] of [
+    [-1.05, -0.95],
+    [1.05, -0.95],
+  ]) {
+    const tent = new THREE.Mesh(
+      new THREE.ConeGeometry(0.86, 1.5, 4),
+      material(0xe6d3ab),
+    );
+    tent.position.set(tx, 1.45, tz);
+    tent.rotation.y = Math.PI / 4;
+    tent.castShadow = true;
+    camp.add(tent);
+  }
+  box(0.12, 3.2, 0.12, 0xdccaa4, 1.5, 2.3, 1.4, camp);
+  const campFlag = new THREE.Mesh(
+    new THREE.BoxGeometry(1.15, 0.78, 0.06),
+    new THREE.MeshStandardMaterial({ color: 0x54baff, roughness: 0.8 }),
+  );
+  campFlag.position.set(2.08, 3.42, 1.4);
+  camp.add(campFlag);
+  const campGlow = new THREE.Mesh(
+    new THREE.RingGeometry(1.5, 2.15, 40),
+    new THREE.MeshBasicMaterial({
+      color: 0xffe6a8,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+    }),
+  );
+  campGlow.rotation.x = -Math.PI / 2;
+  campGlow.position.y = 0.68;
+  camp.add(campGlow);
+  let campFlashAt = -99;
+  // Rota até a frente. Quem atravessa o rio passa pela ponte: o trajeto conta
+  // que o agente saiu da base e foi até o território.
+  function routeTo(siteId) {
+    const [x, z] = siteCoords[siteId];
+    const target = new THREE.Vector3(x, 0.55, z);
+    if (z < 0)
+      return [
+        CAMP.clone(),
+        new THREE.Vector3(x < 0 ? -5.6 : 5.6, 0.55, 3.1),
+        new THREE.Vector3(x < 0 ? -5.6 : 5.6, 0.55, -3.1),
+        target,
+      ];
+    return [CAMP.clone(), new THREE.Vector3(x * 0.5 + 3, 0.55, 9.2), target];
+  }
+  // Percurso com velocidade constante: sem pesar pelo comprimento o agente
+  // acelera e freia entre trechos de tamanhos diferentes.
+  function along(path, t) {
+    const lengths = [];
+    let total = 0;
+    for (let i = 0; i < path.length - 1; i++) {
+      const d = path[i].distanceTo(path[i + 1]);
+      lengths.push(d);
+      total += d;
+    }
+    let travelled = Math.max(0, Math.min(1, t)) * total;
+    for (let i = 0; i < lengths.length; i++) {
+      if (travelled <= lengths[i] || i === lengths.length - 1) {
+        const f = lengths[i] ? Math.min(1, travelled / lengths[i]) : 1;
+        return {
+          position: path[i].clone().lerp(path[i + 1], f),
+          heading: path[i + 1].clone().sub(path[i]),
+        };
+      }
+      travelled -= lengths[i];
+    }
+    return { position: path[0].clone(), heading: new THREE.Vector3(0, 0, 1) };
+  }
+  // Cada frente carrega os seus estados no próprio terreno: anel de progresso,
+  // cerca da worktree, cúpula do harness e cristais de falha. É esse conjunto
+  // que faz o efeito de uma carta aparecer no mapa, e não apenas no painel.
   const zones = siteCoords.map(([x, z]) => {
     const group = new THREE.Group();
     group.position.set(x, 0.6, z);
     island.add(group);
     const ring = new THREE.Mesh(
-      new THREE.RingGeometry(2.3, 2.45, 40),
+      new THREE.RingGeometry(2.62, 2.86, 48),
       new THREE.MeshBasicMaterial({
         color: 0x74c5ff,
         side: THREE.DoubleSide,
@@ -312,23 +417,150 @@ export async function createWorld(canvas) {
     );
     ring.rotation.x = -Math.PI / 2;
     group.add(ring);
-    const dome = new THREE.Mesh(
-      new THREE.SphereGeometry(2.5, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2),
+    // Anel segmentado: cada bloco aceso é um passo da obra. Substitui a barra de
+    // 4 px que antes ficava escondida atrás da placa da construção.
+    const segments = [];
+    const steps = 28;
+    for (let i = 0; i < steps; i++) {
+      const a = (i / steps) * Math.PI * 2;
+      const seg = new THREE.Mesh(
+        new THREE.BoxGeometry(0.34, 0.09, 0.2),
+        new THREE.MeshBasicMaterial({ color: 0x8be3ac, transparent: true }),
+      );
+      seg.position.set(Math.cos(a) * 2.3, 0.02, Math.sin(a) * 2.3);
+      seg.rotation.y = -a;
+      group.add(seg);
+      segments.push(seg);
+    }
+    const glow = new THREE.Mesh(
+      new THREE.CircleGeometry(2.55, 40),
       new THREE.MeshBasicMaterial({
-        color: 0x65b9ff,
+        color: 0xffffff,
         transparent: true,
-        opacity: 0.13,
+        opacity: 0,
+        depthWrite: false,
+      }),
+    );
+    glow.rotation.x = -Math.PI / 2;
+    glow.position.y = -0.01;
+    group.add(glow);
+    const dome = new THREE.Mesh(
+      new THREE.SphereGeometry(2.9, 26, 14, 0, Math.PI * 2, 0, Math.PI / 2),
+      new THREE.MeshBasicMaterial({
+        color: 0x79bfff,
+        transparent: true,
+        opacity: 0.2,
         depthWrite: false,
         side: THREE.DoubleSide,
       }),
     );
     group.add(dome);
-    const corners = new THREE.Group();
-    group.add(corners);
-    for (const xx of [-2.65, 2.65])
-      for (const zz of [-2.65, 2.65])
-        box(0.22, 0.4, 0.22, 0x79dfa9, xx, 0.05, zz, corners);
-    return { group, ring, dome, corners };
+    const domeLines = new THREE.Mesh(
+      new THREE.SphereGeometry(2.92, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2),
+      new THREE.MeshBasicMaterial({
+        color: 0xbfe4ff,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.42,
+        depthWrite: false,
+      }),
+    );
+    group.add(domeLines);
+    // Worktree: cada canteiro isolado é uma cerca. Duas cercas concêntricas
+    // dizem, sem texto, que a frente comporta dois agentes em paralelo.
+    const fences = [3.12, 3.62].map((radius) => {
+      const fence = new THREE.Group();
+      group.add(fence);
+      for (let i = 0; i < 16; i++) {
+        const a = (i / 16) * Math.PI * 2;
+        const post = box(
+          0.2,
+          0.95,
+          0.2,
+          0x83dbb1,
+          Math.cos(a) * radius,
+          0.45,
+          Math.sin(a) * radius,
+          fence,
+        );
+        post.rotation.y = -a;
+      }
+      const fenceRing = new THREE.Mesh(
+        new THREE.RingGeometry(radius - 0.1, radius + 0.1, 44),
+        new THREE.MeshBasicMaterial({
+          color: 0x83dbb1,
+          side: THREE.DoubleSide,
+          transparent: true,
+          opacity: 0.55,
+        }),
+      );
+      fenceRing.rotation.x = -Math.PI / 2;
+      fenceRing.position.y = 0.01;
+      fence.add(fenceRing);
+      return fence;
+    });
+    // Andaime: aparece enquanto a obra não fecha o nível.
+    const scaffold = new THREE.Group();
+    group.add(scaffold);
+    for (const [sx, sz] of [
+      [-1.5, -1.5],
+      [1.5, -1.5],
+      [-1.5, 1.5],
+      [1.5, 1.5],
+    ])
+      box(0.16, 3.1, 0.16, 0xd8b06a, sx, 1.5, sz, scaffold);
+    for (const y of [1.2, 2.5])
+      for (const [ax, az, w, d] of [
+        [0, -1.5, 3.16, 0.14],
+        [0, 1.5, 3.16, 0.14],
+        [-1.5, 0, 0.14, 3.16],
+        [1.5, 0, 0.14, 3.16],
+      ])
+        box(w, 0.14, d, 0xe0bd80, ax, y, az, scaffold);
+    // Falhas acumuladas: cristais vermelhos girando sobre a obra.
+    const faults = [];
+    for (let i = 0; i < 3; i++) {
+      const shard = new THREE.Mesh(
+        new THREE.OctahedronGeometry(0.34),
+        new THREE.MeshStandardMaterial({
+          color: 0xff7d63,
+          emissive: 0x99271a,
+          emissiveIntensity: 1.4,
+          roughness: 0.25,
+        }),
+      );
+      shard.position.set((i - 1) * 0.95, 3.5, 0);
+      group.add(shard);
+      faults.push(shard);
+    }
+    // Onda de choque do lançamento da carta, no estilo do deploy de arena.
+    const pulse = new THREE.Mesh(
+      new THREE.RingGeometry(0.6, 1.05, 40),
+      new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+      }),
+    );
+    pulse.rotation.x = -Math.PI / 2;
+    pulse.position.y = 0.03;
+    group.add(pulse);
+    return {
+      group,
+      ring,
+      segments,
+      glow,
+      dome,
+      domeLines,
+      fences,
+      scaffold,
+      faults,
+      pulse,
+      pulseAt: -99,
+      pulseColor: new THREE.Color(0xffffff),
+    };
   });
   function setClip(actor, name) {
     if (actor.clip === name) return;
@@ -342,21 +574,35 @@ export async function createWorld(canvas) {
   function addCrew(job) {
     const template = templates[job.cardId === "builder" ? "Barbarian" : "Mage"];
     if (!template) return;
+    // O template é o mesmo objeto usado como ator da vitrine, e a batalha o
+    // esconde no começo de cada quadro. Sem restaurar isto, o clone nasce
+    // invisível e o agente nunca aparece caminhando até a frente.
     const obj = clone(template.obj);
+    obj.visible = true;
+    obj.scale.multiplyScalar(1.2);
     island.add(obj);
     const mixer = new THREE.AnimationMixer(obj);
-    const start = new THREE.Vector3(job.siteId === 0 ? -5.6 : 5.6, 0.55, 2.6);
     const [x, z] = siteCoords[job.siteId];
-    const target = new THREE.Vector3(
-      x + (job.id % 2 ? 0.75 : -0.75),
+    const path = routeTo(job.siteId);
+    // Frentes paralelas colocam até três agentes na mesma obra: cada um recebe
+    // um posto próprio, senão os modelos ficam sobrepostos.
+    const posted = [...crew.values()].filter(
+      (a) => a.job.siteId === job.siteId,
+    ).length;
+    const lane = [0, -1.5, 1.5][posted % 3];
+    path[path.length - 1] = new THREE.Vector3(
+      x + lane,
       0.55,
-      z + (job.siteId === 1 ? -2.5 : 2),
+      z + (job.siteId === 1 ? -2.9 : 2.5) + (posted >= 3 ? 1.1 : 0),
     );
+    campFlashAt = prev;
     const marker = new THREE.Mesh(
-      new THREE.RingGeometry(0.48, 0.62, 24),
+      new THREE.RingGeometry(0.62, 0.86, 28),
       new THREE.MeshBasicMaterial({
         color: job.conflict ? 0xff8067 : 0xffd888,
         side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.95,
       }),
     );
     marker.rotation.x = -Math.PI / 2;
@@ -366,11 +612,82 @@ export async function createWorld(canvas) {
       mixer,
       clips: template.clips,
       job,
-      start,
-      target,
+      path,
+      grown: 0,
+      baseScale: obj.scale.clone(),
       marker,
       retire: null,
     });
+  }
+  function dropCrew(id, actor) {
+    island.remove(actor.obj, actor.marker);
+    actor.mixer.stopAllAction();
+    actor.marker.geometry.dispose();
+    actor.marker.material.dispose();
+    crew.delete(id);
+  }
+  // Enquadramento: o retângulo recebido é preenchido pelo eixo mais apertado,
+  // em vez de ajustar só a altura. É o que faz o mapa aparecer de verdade.
+  //
+  // A extensão é medida malha a malha, não pela caixa envolvente do conjunto:
+  // somar a altura do castelo à diagonal do terreno inflaria o eixo vertical em
+  // torno de 20% e encolheria o tabuleiro na mesma proporção.
+  const play = span(),
+    full = span();
+  function span() {
+    return { h: [Infinity, -Infinity], v: [Infinity, -Infinity] };
+  }
+  function widen(target, value, axis) {
+    const range = target[axis];
+    if (value < range[0]) range[0] = value;
+    if (value > range[1]) range[1] = value;
+  }
+  let boundsAt = -1;
+  function measure() {
+    if (boundsAt === loaded) return;
+    boundsAt = loaded;
+    const bob = island.position.y;
+    island.position.y = 0;
+    island.updateMatrixWorld(true);
+    Object.assign(play, span());
+    Object.assign(full, span());
+    const bounds = new THREE.Box3(),
+      corner = new THREE.Vector3();
+    island.traverse((o) => {
+      if (!o.isMesh) return;
+      bounds.setFromObject(o);
+      for (const x of [bounds.min.x, bounds.max.x])
+        for (const y of [bounds.min.y, bounds.max.y])
+          for (const z of [bounds.min.z, bounds.max.z]) {
+            corner.set(x, y, z);
+            const h = corner.dot(RIGHT),
+              v = corner.dot(UP);
+            widen(full, h, "h");
+            widen(full, v, "v");
+            if (!o.userData.decor) {
+              widen(play, h, "h");
+              widen(play, v, "v");
+            }
+          }
+    });
+    island.position.y = bob;
+  }
+  // A câmera desliza pelos próprios eixos de tela para centralizar o tabuleiro:
+  // sem isso a borda inferior da ilha decide o zoom sozinha.
+  function frame(bounds, aspect) {
+    if (!Number.isFinite(bounds.h[0]))
+      return { half: 18, shift: new THREE.Vector3() };
+    const hc = (bounds.h[0] + bounds.h[1]) / 2,
+      vc = (bounds.v[0] + bounds.v[1]) / 2;
+    const half =
+      Math.max(
+        (bounds.v[1] - bounds.v[0]) / 2,
+        (bounds.h[1] - bounds.h[0]) / 2 / aspect,
+      ) * 1.04;
+    const shift = RIGHT.clone()
+      .multiplyScalar(hc)
+      .addScaledVector(UP, vc);
+    return { half, shift };
   }
   let burst = 0,
     prev = 0;
@@ -385,7 +702,18 @@ export async function createWorld(canvas) {
     targets() {
       return targetPoints;
     },
-    draw(
+    agents() {
+      return agentPoints;
+    },
+    // O cliente avisa o lançamento para a cena disparar a onda de choque no
+    // ponto exato em que a carta foi solta.
+    deploy(siteId, color = "#ffffff") {
+      const zone = zones[siteId];
+      if (!zone) return;
+      zone.pulseAt = prev;
+      zone.pulseColor.set(color);
+    },
+    draw({
       time,
       rect,
       width,
@@ -393,10 +721,13 @@ export async function createWorld(canvas) {
       reduced,
       team,
       elapsed = 0,
+      progress = null,
       selectedSite = 0,
       selectedCard = null,
+      targetSite = null,
+      legal = null,
       paused = false,
-    ) {
+    }) {
       const dt = Math.min((time - prev) / 1000, 0.05);
       prev = time;
       if (
@@ -409,24 +740,27 @@ export async function createWorld(canvas) {
       renderer.setViewport(rect.x, height - rect.y - rect.h, rect.w, rect.h);
       renderer.setScissor(rect.x, height - rect.y - rect.h, rect.w, rect.h);
       renderer.setScissorTest(true);
+      const progress3d = (id, site) =>
+        progress && Number.isFinite(progress[id]) ? progress[id] : site.built;
+      island.position.y = reduced || team ? 0 : Math.sin(time * 0.0005) * 0.18;
+      measure();
+      // Na batalha o tabuleiro manda; na vitrine cabe a rocha inteira.
       const aspect = rect.w / rect.h,
-        half = team ? (width < 800 ? Math.min(18, rect.h / 16) : 17) : 18;
-      camera.position.set(team ? 0 : 26, 34, team ? 30 : 38);
-      camera.lookAt(0, 0, 0);
+        { half, shift } = frame(team ? play : full, aspect);
+      camera.position.set(
+        Math.sin(AZIMUTH) * CAMERA_RADIUS + shift.x,
+        CAMERA_HEIGHT + shift.y,
+        Math.cos(AZIMUTH) * CAMERA_RADIUS + shift.z,
+      );
+      camera.lookAt(shift.x, shift.y, shift.z);
       camera.left = -half * aspect;
       camera.right = half * aspect;
       camera.top = half;
       camera.bottom = -half;
       camera.updateProjectionMatrix();
-      island.position.y = reduced || team ? 0 : Math.sin(time * 0.0005) * 0.18;
+      camera.updateMatrixWorld(true);
       if (visibleTeam !== team?.id) {
-        for (const actor of crew.values()) {
-          island.remove(actor.obj, actor.marker);
-          actor.mixer.stopAllAction();
-          actor.marker.geometry.dispose();
-          actor.marker.material.dispose();
-        }
-        crew.clear();
+        for (const [id, actor] of crew) dropCrew(id, actor);
         visibleTeam = team?.id;
       }
       buildings.forEach(({ obj, scale, siteId }) => {
@@ -437,29 +771,14 @@ export async function createWorld(canvas) {
         }
         if (siteId === null) return;
         const site = team.sites[siteId];
-        const working = team.jobs.filter(
-          (j) => j.siteId === siteId && j.cardId === "builder",
-        );
-        const progress = Math.min(
-          100,
-          site.built +
-            working.reduce(
-              (v, j) =>
-                v +
-                (j.conflict ? 75 : 100) *
-                  Math.max(
-                    0,
-                    Math.min(
-                      1,
-                      (elapsed - j.startedAt) / (j.endsAt - j.startedAt),
-                    ),
-                  ),
-              0,
-            ),
-        );
+        // O progresso vem pronto do cliente, que é quem já o desenha na placa.
+        // Recalcular aqui era a segunda cópia da mesma conta, e divergia dela.
+        const progress = progress3d(siteId, site);
+        // Piso mais alto: no nível 0 a construção precisa parecer uma obra, não
+        // um seixo. Cada nível entregue soma um degrau visível.
         const height =
           scale *
-          (0.32 + (0.68 * Math.min(3, site.level + progress / 100)) / 3);
+          (0.46 + (0.54 * Math.min(3, site.level + progress / 100)) / 3);
         obj.scale.y +=
           (height - obj.scale.y) * (reduced ? 1 : Math.min(1, dt * 4));
       });
@@ -467,20 +786,80 @@ export async function createWorld(canvas) {
         zone.group.visible = Boolean(team);
         if (!team) return;
         const site = team.sites[i];
-        zone.dome.visible = site.harness;
-        zone.corners.visible = site.worktree;
-        zone.ring.material.color.set(
-          site.faults
-            ? "#ff896d"
-            : selectedCard
-              ? "#ffdb8a"
+        const progress = progress3d(i, site);
+        const done = site.level >= 3;
+        const aiming = selectedCard && targetSite === i;
+        const allowed = legal?.[i] !== false;
+        // Cor do anel conta a leitura da carta em jogo: verde libera, vermelho
+        // recusa, dourado é a frente escolhida.
+        const tint = done
+          ? "#8be3ac"
+          : selectedCard
+            ? allowed
+              ? aiming
+                ? "#ffffff"
+                : "#ffdb8a"
+              : "#ff7d63"
+            : site.faults
+              ? "#ff896d"
               : selectedSite === i
                 ? "#ffffff"
-                : team.color,
+                : team.color;
+        zone.ring.material.color.set(tint);
+        const beat = reduced ? 1 : 0.72 + Math.sin(time * 0.006 + i) * 0.28;
+        zone.ring.material.opacity = selectedCard
+          ? allowed
+            ? aiming
+              ? 1
+              : beat
+            : 0.5
+          : selectedSite === i
+            ? 1
+            : 0.5;
+        zone.group.scale.setScalar(aiming && allowed ? 1.06 : 1);
+        zone.glow.material.color.set(tint);
+        zone.glow.material.opacity = aiming && allowed ? 0.16 : 0;
+        const lit = Math.round((progress / 100) * zone.segments.length);
+        zone.segments.forEach((seg, s) => {
+          seg.visible = !done && s < lit;
+          seg.material.color.set(
+            site.faults ? "#ff9a80" : site.reviewed ? "#8be3ac" : "#7fd0ff",
+          );
+        });
+        zone.dome.visible = zone.domeLines.visible = site.harness;
+        if (site.harness && !reduced)
+          zone.domeLines.rotation.y = time * 0.00035;
+        zone.fences.forEach((fence, f) => (fence.visible = site.worktrees > f));
+        const building = team.jobs.some(
+          (j) => j.cardId === "builder" && j.siteId === i,
         );
-        zone.ring.material.opacity =
-          selectedSite === i || selectedCard ? 1 : 0.55;
+        zone.scaffold.visible = !done && (progress > 0 || building);
+        zone.scaffold.scale.y = 0.35 + 0.65 * (progress / 100);
+        zone.faults.forEach((shard, f) => {
+          shard.visible = f < site.faults;
+          if (!reduced) {
+            shard.rotation.y = time * 0.002 + f;
+            shard.position.y = 3.5 + Math.sin(time * 0.003 + f * 2) * 0.16;
+          }
+        });
+        const age = (time - zone.pulseAt) / 620;
+        if (age >= 0 && age <= 1) {
+          zone.pulse.visible = true;
+          zone.pulse.scale.setScalar(0.5 + age * 2.6);
+          zone.pulse.material.color.copy(zone.pulseColor);
+          zone.pulse.material.opacity = (1 - age) * 0.9;
+        } else zone.pulse.visible = false;
       });
+      camp.visible = Boolean(team);
+      if (team) {
+        campFlag.material.color.set(team.color);
+        const flash = (time - campFlashAt) / 700;
+        campGlow.material.opacity =
+          flash >= 0 && flash <= 1 ? (1 - flash) * 0.75 : 0;
+        campGlow.scale.setScalar(
+          flash >= 0 && flash <= 1 ? 0.7 + flash * 0.5 : 1,
+        );
+      }
       beacons.forEach((gem, i) => {
         const lit = !team || team.sites[i % 3].level > Math.floor(i / 3);
         gem.material.color.setHex(lit ? 0x82e9ee : 0x567687);
@@ -499,39 +878,39 @@ export async function createWorld(canvas) {
         }
         for (const [id, actor] of crew) {
           const active = team.jobs.some((j) => j.id === id);
-          if (!active && actor.retire === null) actor.retire = elapsed;
-          if (actor.retire !== null) {
-            const back = Math.min(1, (elapsed - actor.retire) / 2);
-            actor.obj.position.lerpVectors(actor.target, actor.start, back);
-            setClip(actor, "Walking_A");
-            if (back >= 1) {
-              island.remove(actor.obj, actor.marker);
-              actor.mixer.stopAllAction();
-              actor.marker.geometry.dispose();
-              actor.marker.material.dispose();
-              crew.delete(id);
-              continue;
-            }
-          } else {
-            const step = Math.min(
-              1,
-              Math.max(0, (elapsed - actor.job.startedAt) / 2),
-            );
-            actor.obj.position.lerpVectors(actor.start, actor.target, step);
-            setClip(
-              actor,
-              step < 1
-                ? "Walking_A"
-                : actor.job.cardId === "builder"
-                  ? "Interact"
-                  : "Spellcasting",
-            );
+          if (!active && actor.retire === null) {
+            actor.retire = elapsed;
+            campFlashAt = time;
           }
-          const direction =
-            actor.retire !== null
-              ? actor.start.clone().sub(actor.target)
-              : actor.target.clone().sub(actor.start);
-          actor.obj.rotation.y = Math.atan2(direction.x, direction.z);
+          // Ida e volta percorrem a mesma rota. O trecho de volta termina no
+          // acampamento, onde o agente encolhe até sumir.
+          const walking = actor.retire === null;
+          const step = walking
+            ? Math.max(0, (elapsed - actor.job.startedAt) / 3.4)
+            : 1 - Math.max(0, (elapsed - actor.retire) / 3);
+          const { position, heading } = along(actor.path, step);
+          actor.obj.position.copy(position);
+          const arrived = walking && step >= 1;
+          setClip(
+            actor,
+            arrived
+              ? actor.job.cardId === "builder"
+                ? "Interact"
+                : "Spellcasting"
+              : "Walking_A",
+          );
+          // Surge crescendo no acampamento e recolhe encolhendo: sem isto o
+          // modelo aparecia e sumia de um quadro para o outro.
+          const target = walking ? 1 : Math.max(0, Math.min(1, step * 4));
+          actor.grown +=
+            (target - actor.grown) * (reduced ? 1 : Math.min(1, dt * 7));
+          if (!walking && actor.grown < 0.06) {
+            dropCrew(id, actor);
+            continue;
+          }
+          actor.obj.scale.copy(actor.baseScale).multiplyScalar(actor.grown);
+          if (!walking) heading.negate();
+          actor.obj.rotation.y = Math.atan2(heading.x, heading.z);
           actor.mixer.update(reduced || paused ? 0 : dt);
           actor.marker.position.set(
             actor.obj.position.x,
@@ -540,6 +919,11 @@ export async function createWorld(canvas) {
           );
           actor.marker.material.color.set(
             actor.job.conflict ? "#ff8067" : team.color,
+          );
+          actor.marker.material.opacity = 0.95 * actor.grown;
+          actor.marker.scale.setScalar(
+            (reduced ? 1 : 1 + Math.sin(time * 0.005 + id) * 0.07) *
+              Math.max(0.2, actor.grown),
           );
         }
       }
@@ -555,17 +939,34 @@ export async function createWorld(canvas) {
       });
       burst = Math.max(0, burst - dt * 0.55);
       renderer.render(scene, camera);
+      const project = (x, y, z) => {
+        const p = island.localToWorld(new THREE.Vector3(x, y, z)).project(camera);
+        return {
+          x: rect.x + ((p.x + 1) * rect.w) / 2,
+          y: rect.y + ((1 - p.y) * rect.h) / 2,
+        };
+      };
       targetPoints = team
         ? siteCoords.map(([x, z], id) => {
-            const p = island
-              .localToWorld(new THREE.Vector3(x, 0.65, z))
-              .project(camera);
+            // A placa se apoia no topo atual da construção: com altura fixa ela
+            // flutuaria longe das frentes ainda baixas.
+            const building = buildings.find((b) => b.siteId === id);
+            const tall = building
+              ? (building.height * building.obj.scale.y) / building.scale
+              : 2.4;
             return {
               id,
-              x: rect.x + ((p.x + 1) * rect.w) / 2,
-              y: rect.y + ((1 - p.y) * rect.h) / 2,
+              ...project(x, 0.65, z),
+              top: project(x, tall + 0.7, z).y,
             };
           })
+        : [];
+      agentPoints = team
+        ? [...crew.values()].map((actor) => ({
+            id: actor.job.id,
+            job: actor.job,
+            ...project(actor.obj.position.x, 3.7, actor.obj.position.z),
+          }))
         : [];
     },
   };

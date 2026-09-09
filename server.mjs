@@ -29,7 +29,7 @@ export function createServer() {
           if(!match)throw new GameError('Rota não encontrada.',404);
           const room=arena.get(match[1]);const key=req.headers.authorization?.replace(/^Bearer /,'');
           if(match[2]==='join'){const p=arena.join(room,body,key);publish(room);json(res,200,{key:p.key,state:arena.snapshot(room,p.key)});}
-          else {try{arena.action(room,key,body.action,body);}finally{publish(room);}json(res,200,{state:arena.snapshot(room,key)});}return;
+          else {let result;try{result=arena.action(room,key,body.action,body);}finally{publish(room);}json(res,200,{state:arena.snapshot(room,key),result});}return;
         }
         if(req.method==='GET'){
           if(url.pathname==='/api/connection') {

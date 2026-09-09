@@ -56,7 +56,23 @@ let fields = {
   animation = 0;
 let selectedSite = 0,
   watchTeam = 0,
-  drag = null;
+  drag = null,
+  aimedSite = null,
+  aimLegality = null;
+// Estudo em campo: só o tempo das animações mora aqui. O enunciado vem do
+// snapshot e a resposta certa só chega na resposta da própria jogada.
+let quizFx = {
+  jobId: null,
+  openedAt: 0,
+  reveal: null,
+  revealAt: 0,
+  minimized: false,
+};
+// Aceleração conquistada: a frente que recebeu o corte de tempo pisca por um
+// instante, para o acerto virar algo que se vê no mapa e não só no placar.
+let boostFx = { siteId: null, at: -9999 };
+const boosted = new Set();
+const BOOST_MS = 1500;
 let inviteBase = location.origin;
 let saved = null;
 try {
@@ -151,6 +167,21 @@ function wrap(str, x, y, w, size = 18, color = C.muted, line = 26, max = 10) {
   }
   if (row) text(row, x, y + n * line, size, color);
   return y + (n + 1) * line;
+}
+// Conta as linhas que wrap() produziria. Serve para dimensionar um painel antes
+// de desenhar o texto dentro dele.
+function measureLines(str, w, size, max = 3) {
+  ctx.font = `700 ${size}px Nunito`;
+  let lines = 1,
+    row = "";
+  for (const word of String(str).split(" ")) {
+    const test = row ? row + " " + word : word;
+    if (ctx.measureText(test).width > w && row) {
+      if (++lines >= max) return max;
+      row = word;
+    } else row = test;
+  }
+  return lines;
 }
 function line(x, y, x2, y2, color = C.line, width = 1) {
   ctx.beginPath();
@@ -253,6 +284,24 @@ function icon(name, x, y, size = 32, color = C.gold) {
     ctx.lineTo(-3, 10);
     ctx.lineTo(14, -11);
     ctx.stroke();
+  } else if (name === "cross") {
+    ctx.moveTo(-11, -11);
+    ctx.lineTo(11, 11);
+    ctx.moveTo(11, -11);
+    ctx.lineTo(-11, 11);
+    ctx.stroke();
+  } else if (name === "brain") {
+    ctx.arc(0, -2, 11, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, -13);
+    ctx.lineTo(0, 9);
+    ctx.moveTo(-7, -5);
+    ctx.lineTo(7, -5);
+    ctx.moveTo(-7, 4);
+    ctx.lineTo(7, 4);
+    ctx.stroke();
+    line(-5, 16, 5, 16, color, 3);
   } else if (name === "sound") {
     ctx.moveTo(-15, -5);
     ctx.lineTo(-7, -5);
@@ -974,28 +1023,28 @@ function drawModal() {
     const { x, y, w, h } = modalBox(
       "Como conquistar a Cidadela",
       mobile ? 398 : 740,
-      mobile ? 690 : 620,
+      mobile ? Math.min(H - 24, 700) : 620,
     );
     const rules = [
       [
-        "crown",
-        "1. Reúna sua guilda",
-        "O admin define o tamanho da turma. Cada pessoa escolhe uma guilda com vagas antes do início.",
-      ],
-      [
         "tools",
-        "2. Mobilize seus agentes",
-        "Arraste Construtor até Portal, Forja ou Muralha. Ele caminha e trabalha por 12 segundos. Depois, envie Revisor.",
+        "1. Solte a carta na frente",
+        "Toque na carta e depois na frente. A placa diz antes o que aconteceria ali.",
       ],
       [
-        "shield",
-        "3. Coordene as frentes",
-        "Worktree separa os arquivos; Harness bloqueia ações sem permissão. O contexto é compartilhado e se regenera.",
+        "brain",
+        "2. Responda enquanto ele trabalha",
+        `Cada Construtor ou Revisor abre uma pergunta da apresentação. Acertar corta metade do tempo e vale +${state?.study?.bonus ?? 20} pontos.`,
+      ],
+      [
+        "branch",
+        "3. Abra canteiros para paralelizar",
+        "Cada Worktree é um diretório e cabe um agente. Com canteiro livre, dois Construtores constroem em metade do tempo; sem ele, rendem metade cada.",
       ],
       [
         "gem",
-        "4. Entregue e conquiste",
-        "Selecione a obra pronta e toque em Entregar. Revisada: 100 pontos. Sem revisão: 40. O maior placar ganha o brinde.",
+        "4. Revise, integre e entregue",
+        "A revisão soma +5 s por frente extra para convergir. Harness barra entrega sem revisão: revisada vale 100, sem revisão 40.",
       ],
     ];
     let yy = y + 96;
@@ -1014,7 +1063,7 @@ function drawModal() {
         ) + 26;
     }
     wrap(
-      "São 3 agentes e 12 de contexto por guilda, qualquer que seja o tamanho do time. Máximo: 900 pontos. Empate final: vitória compartilhada.",
+      "3 agentes e 12 de contexto para a guilda inteira. Paralelizar compra tempo pagando contexto e integração: decidam juntos onde vale a pena.",
       x + 27,
       yy,
       w - 54,
@@ -1534,6 +1583,28 @@ function elapsed() {
       )
     : 0;
 }
+// A obra é acumulada pelo servidor em site.built. Entre um snapshot e outro o
+// cliente projeta pelo mesmo ritmo, em vez de somar uma barra por agente: aquela
+// conta era do modelo antigo, contava o trabalho duas vezes e enchia a barra
+// antes da hora — pior ainda depois de um acerto, que encurta o relógio da
+// tarefa mas não move o startedAt.
+function buildRate(team, site) {
+  if (site.level >= state.story.maxLevel || site.built >= 100) return 0;
+  const per = 100 / state.story.buildSeconds;
+  return team.jobs.reduce(
+    (rate, job) =>
+      job.cardId === "builder" && job.siteId === site.id
+        ? rate + per * (job.conflict ? state.story.conflictRate : 1)
+        : rate,
+    0,
+  );
+}
+function buildProgress(team, site, now) {
+  return Math.min(
+    100,
+    site.built + buildRate(team, site) * Math.max(0, now - state.elapsed),
+  );
+}
 function currentEnergy(team) {
   return Math.min(
     state.story.maxEnergy,
@@ -1554,23 +1625,807 @@ async function command(name, body) {
 }
 async function playCard(cardId, siteId) {
   selectedSite = siteId;
+  // A onda de choque sai no ato do toque, sem esperar a resposta do servidor:
+  // é o retorno imediato que faz a carta parecer aplicada ao mapa.
+  world?.deploy?.(
+    siteId,
+    state.cards.find((c) => c.id === cardId)?.color || "#ffffff",
+  );
   return command("play", { cardId, siteId });
 }
 function targetPositions() {
   const points = world?.targets?.();
   if (points?.length)
     return points.map((p) => ({
-      ...p,
+      id: p.id,
       x: (p.x - ox) / scale,
       y: (p.y - oy) / scale,
+      top: (p.top - oy) / scale,
     }));
   const r = sceneRect();
   return [
-    { id: 0, x: r.x + r.w * 0.35, y: r.y + r.h * 0.3 },
-    { id: 1, x: r.x + r.w * 0.4, y: r.y + r.h * 0.75 },
-    { id: 2, x: r.x + r.w * 0.7, y: r.y + r.h * 0.45 },
+    { id: 0, x: r.x + r.w * 0.38, y: r.y + r.h * 0.34, top: r.y + r.h * 0.12 },
+    { id: 1, x: r.x + r.w * 0.52, y: r.y + r.h * 0.86, top: r.y + r.h * 0.64 },
+    { id: 2, x: r.x + r.w * 0.66, y: r.y + r.h * 0.55, top: r.y + r.h * 0.33 },
   ];
 }
+function agentPositions() {
+  return (world?.agents?.() || []).map((p) => ({
+    ...p,
+    x: (p.x - ox) / scale,
+    y: (p.y - oy) / scale,
+  }));
+}
+// Espelha as regras de game.mjs para antecipar a leitura na arena: a pessoa
+// precisa saber o que a carta faz naquela frente antes de gastar o contexto.
+// O servidor continua sendo quem aceita ou recusa a jogada.
+function previewPlay(card, site, team, energy) {
+  const story = state.story;
+  if (site.level >= story.maxLevel)
+    return { ok: false, hint: "Frente concluída. Escolha outra." };
+  if (energy + 1e-8 < card.cost)
+    return {
+      ok: false,
+      hint: `Faltam ${Math.ceil(card.cost - energy)} de contexto.`,
+    };
+  if (card.id === "worktree") {
+    if (site.worktrees >= story.maxWorktrees)
+      return {
+        ok: false,
+        hint: `Esta frente já tem ${story.maxWorktrees} canteiros.`,
+      };
+    const stuck = team.jobs.some(
+      (j) => j.cardId === "builder" && j.siteId === site.id && j.conflict,
+    );
+    return {
+      ok: true,
+      hint: stuck
+        ? "Tira um Construtor do checkout compartilhado e encerra o conflito."
+        : `Abre o canteiro ${site.worktrees + 1}: mais um Construtor em paralelo aqui.`,
+    };
+  }
+  if (card.id === "harness")
+    return site.harness
+      ? { ok: false, hint: "O harness já protege esta frente." }
+      : { ok: true, hint: "Bloqueia entrega sem revisão e comandos do caos." };
+  const here = team.jobs.filter((j) => j.siteId === site.id);
+  if (card.id === "builder") {
+    if (site.built >= 100)
+      return { ok: false, hint: "Obra pronta. Falta revisar ou entregar." };
+    if (here.some((j) => j.cardId === "reviewer"))
+      return { ok: false, hint: "Revisão em andamento nesta frente." };
+  } else {
+    if (site.built < 100)
+      return { ok: false, hint: "Construa até 100% antes de revisar." };
+    if (site.reviewed)
+      return { ok: false, hint: "Já revisada. Pode entregar." };
+    if (here.length)
+      return { ok: false, hint: "Espere os agentes desta frente terminarem." };
+  }
+  if (team.jobs.length >= 3)
+    return { ok: false, hint: "Os 3 agentes da guilda estão ocupados." };
+  if (card.id === "reviewer")
+    return {
+      ok: true,
+      hint: `Valida a obra em ${story.reviewSeconds + site.faults * 3} s${
+        site.faults ? ` · ${site.faults} falha(s) a corrigir` : ""
+      }.`,
+    };
+  // Qual diretório sobra para este agente: um canteiro livre desta frente ou o
+  // checkout principal, que é único para a guilda inteira.
+  const busy = new Set(
+    team.jobs.filter((j) => j.cardId === "builder").map((j) => j.workspace),
+  );
+  let slot = null;
+  for (let i = 0; i < site.worktrees; i++)
+    if (!busy.has(`wt:${site.id}:${i}`)) {
+      slot = `wt:${site.id}:${i}`;
+      break;
+    }
+  // O aviso de conflito é o ponto pedagógico da carta Worktree: aparece antes
+  // da jogada, não só no diário depois do estrago.
+  if (!slot && busy.has("main"))
+    return {
+      ok: true,
+      warn: true,
+      hint: "Sem canteiro livre: os dois dividem o checkout e rendem metade cada.",
+    };
+  const crew =
+    team.jobs.filter((j) => j.cardId === "builder" && j.siteId === site.id)
+      .length + 1;
+  const seconds = Math.round(
+    ((100 - site.built) / 100) * (story.buildSeconds / crew),
+  );
+  if (crew > 1)
+    return {
+      ok: true,
+      hint: `${crew}ª frente nesta obra: fecha em ${seconds} s. A revisão soma +${(crew - 1) * story.integrationSeconds} s para convergir.`,
+    };
+  return {
+    ok: true,
+    hint: `Constrói ${Math.round(site.built)}% → 100% em ${seconds} s. Um canteiro libera um 2º Construtor.`,
+  };
+}
+// Calculado antes do render 3D para que anel, brilho e escala da frente reajam
+// no mesmo quadro em que a carta é apontada.
+function aim() {
+  aimedSite = null;
+  aimLegality = null;
+  if (screen !== "battle" || !state || !selection) return;
+  const team = viewTeam();
+  if (!team) return;
+  const card = state.cards.find((c) => c.id === selection);
+  if (!card) return;
+  const energy = currentEnergy(team);
+  aimLegality = team.sites.map(
+    (s) => previewPlay(card, s, team, energy).ok !== false,
+  );
+  if (drag?.active) {
+    let best = null,
+      near = mobile ? 96 : 140;
+    for (const p of targetPositions()) {
+      const d = Math.hypot(pointer.x - p.x, pointer.y - p.y);
+      if (d < near) {
+        near = d;
+        best = p.id;
+      }
+    }
+    aimedSite = best;
+  } else if (hover.startsWith("site-")) aimedSite = Number(hover.slice(5));
+}
+function levelPips(x, y, level, color) {
+  for (let i = 0; i < 3; i++) {
+    const filled = i < level;
+    rect(
+      x + i * 13,
+      y - 5,
+      10,
+      10,
+      filled ? color : "#0d1f3199",
+      3,
+      filled ? "#ffffff55" : "#ffffff2e",
+    );
+  }
+}
+// A placa fica acima da construção. Antes ela era desenhada sobre o prédio e
+// escondia justamente o que a carta muda.
+// As três frentes ficam próximas na diagonal do tabuleiro, então as placas
+// colidem. Elas são posicionadas antes de desenhar e empurradas para cima na
+// ordem de profundidade, como rótulos de mapa.
+function bannerBoxes(points, previewing) {
+  const bw = mobile ? 148 : 218,
+    bh = previewing ? (mobile ? 74 : 98) : mobile ? 56 : 78,
+    top = sceneRect().y + 4;
+  const boxes = points.map((p) => ({
+    id: p.id,
+    bw,
+    bh,
+    bx: p.x - bw / 2,
+    by: Math.max(top, p.top - bh - (mobile ? 10 : 16)),
+  }));
+  // Separação horizontal: as frentes são vizinhas na diagonal, então afastar em
+  // x mantém cada placa perto da própria construção. O rabicho continua ligado
+  // ao ponto real do prédio, mesmo depois do empurrão.
+  for (let pass = 0; pass < 3; pass++)
+    for (let i = 0; i < boxes.length; i++)
+      for (let j = i + 1; j < boxes.length; j++) {
+        const a = boxes[i],
+          b = boxes[j];
+        const gapX =
+          Math.min(a.bx + bw, b.bx + bw) - Math.max(a.bx, b.bx) + 12,
+          gapY = Math.min(a.by + bh, b.by + bh) - Math.max(a.by, b.by) + 6;
+        if (gapX <= 0 || gapY <= 0) continue;
+        const push = gapX / 2;
+        a.bx += a.bx < b.bx ? -push : push;
+        b.bx += a.bx < b.bx ? push : -push;
+      }
+  for (const b of boxes) b.bx = clamp(b.bx, 10, W - bw - 10);
+  return new Map(boxes.map((b) => [b.id, b]));
+}
+function siteBanner(p, box, target, team, preview, aiming, estimate) {
+  const { bx, by, bw, bh } = box;
+  const edge = preview
+    ? preview.ok
+      ? preview.warn
+        ? "#ffb27c"
+        : C.gold
+      : C.red
+    : target.level === 3
+      ? C.green
+      : aiming
+        ? C.gold
+        : "#8298aa55";
+  ctx.save();
+  ctx.shadowColor = "#04101fbb";
+  ctx.shadowBlur = 18;
+  ctx.shadowOffsetY = 7;
+  grad(bx, by, bw, bh, aiming ? "#2f5170" : "#1b3149", "#0d2033", 12, edge);
+  ctx.restore();
+  // Rabicho apontando a construção: sem ele a placa parece solta no cenário.
+  // A base acompanha o empurrão horizontal, e a ponta continua no prédio.
+  const tail = clamp(p.x, bx + 18, bx + bw - 18);
+  ctx.beginPath();
+  ctx.moveTo(tail - 9, by + bh - 1);
+  ctx.lineTo(tail + 9, by + bh - 1);
+  ctx.lineTo(p.x, Math.max(by + bh + 12, p.top - 4));
+  ctx.closePath();
+  ctx.fillStyle = "#0d2033";
+  ctx.fill();
+  ctx.strokeStyle = edge;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  text(
+    target.name,
+    bx + 12,
+    by + (mobile ? 15 : 18),
+    mobile ? 14 : 17,
+    C.cream,
+    "left",
+    900,
+  );
+  levelPips(bx + bw - 51, by + (mobile ? 15 : 18), target.level, C.gold);
+  const barY = by + (mobile ? 26 : 33),
+    barW = bw - 24,
+    barH = mobile ? 7 : 9;
+  const boost =
+    boostFx.siteId === target.id
+      ? clamp((time - boostFx.at) / BOOST_MS, 0, 1)
+      : 1;
+  rect(bx + 12, barY, barW, barH, "#0a1a2b", 5);
+  if (estimate > 0) {
+    const fill = (barW * estimate) / 100;
+    const base = target.faults ? C.red : target.reviewed ? C.green : C.blue;
+    if (boost < 1) {
+      // A barra vira dourada e volta à cor normal, com um brilho crescendo por
+      // baixo: a leitura é "esta obra acabou de acelerar".
+      ctx.save();
+      ctx.shadowColor = C.gold;
+      ctx.shadowBlur = 20 * (1 - boost);
+      rect(bx + 12, barY, fill, barH, C.gold, 5);
+      ctx.restore();
+      // Duas passagens de luz percorrem o trecho já construído.
+      const sweep = (boost * 2) % 1;
+      const sx = bx + 12 + fill * sweep;
+      ctx.save();
+      round(bx + 12, barY, fill, barH, 5);
+      ctx.clip();
+      const glare = ctx.createLinearGradient(sx - 26, 0, sx + 26, 0);
+      glare.addColorStop(0, "#ffffff00");
+      glare.addColorStop(0.5, "#fffdf2cc");
+      glare.addColorStop(1, "#ffffff00");
+      ctx.fillStyle = glare;
+      ctx.fillRect(bx + 12, barY, fill, barH);
+      ctx.restore();
+      // Etiqueta subindo e apagando acima da placa, sem cobrir o nome da frente.
+      ctx.save();
+      ctx.globalAlpha = 1 - boost * boost;
+      const tag = `+${Math.round(state.study.speedup * 100)}% VELOCIDADE`;
+      ctx.font = `900 ${mobile ? 9 : 11}px Nunito`;
+      const tw = ctx.measureText(tag).width + 20;
+      const ty = by - 12 - boost * 18;
+      rect(bx + bw / 2 - tw / 2, ty - 9, tw, 19, "#2e2107f2", 9, C.gold);
+      text(
+        tag,
+        bx + bw / 2,
+        ty + 1,
+        mobile ? 9 : 11,
+        C.gold,
+        "center",
+        900,
+      );
+      ctx.restore();
+    } else rect(bx + 12, barY, fill, barH, base, 5);
+  }
+  const line3 = by + (mobile ? 45 : 62);
+  if (preview)
+    wrap(
+      preview.hint,
+      bx + 12,
+      line3 - (mobile ? 4 : 6),
+      barW,
+      mobile ? 10 : 12,
+      preview.ok ? (preview.warn ? "#ffb27c" : C.gold) : C.red,
+      mobile ? 13 : 15,
+      3,
+    );
+  else {
+    let badge = 12;
+    const mark = (ico, color, label) => {
+      icon(ico, bx + badge + 6, line3, mobile ? 12 : 15, color);
+      ctx.font = `800 ${mobile ? 9 : 11}px Nunito`;
+      text(label, bx + badge + 14, line3, mobile ? 9 : 11, color, "left", 800);
+      badge += (mobile ? 18 : 20) + ctx.measureText(label).width;
+    };
+    const crew = team.jobs.filter(
+      (j) => j.cardId === "builder" && j.siteId === target.id,
+    ).length;
+    if (crew > 1)
+      mark("tools", C.gold, mobile ? `${crew} frentes` : `${crew} frentes · ${crew}×`);
+    if (target.worktrees)
+      mark(
+        "branch",
+        C.green,
+        mobile
+          ? `${target.worktrees} canteiro${target.worktrees > 1 ? "s" : ""}`
+          : `${target.worktrees} canteiro${target.worktrees > 1 ? "s" : ""}`,
+      );
+    if (target.harness)
+      mark("shield", C.blue, mobile ? "protegida" : "harness");
+    if (target.faults)
+      mark("gem", C.red, mobile ? `${target.faults} falha` : `${target.faults} falha(s)`);
+    if (badge === 12)
+      text(
+        target.level === 3
+          ? "Concluída"
+          : target.reviewed
+            ? mobile
+              ? "Pronta para entregar"
+              : "Revisada · pronta para entregar"
+            : estimate >= 100
+              ? mobile
+                ? "Falta revisar"
+                : "Obra pronta · falta revisar"
+              : estimate > 0
+                ? `Construindo · ${Math.round(estimate)}%`
+                : mobile
+                  ? "Envie um Construtor"
+                  : "Aguardando um Construtor",
+        bx + 12,
+        line3,
+        mobile ? 10 : 12,
+        target.reviewed ? C.green : C.muted,
+        "left",
+        800,
+      );
+  }
+  return { bx, by, bw, bh };
+}
+// Cada agente em campo ganha nome e contagem sobre o mapa: é assim que o time
+// enxerga quem já pegou qual frente.
+function agentChips(team, now) {
+  // Frentes paralelas colocam vários agentes quase no mesmo ponto projetado.
+  // Os rótulos sobem em pilha para que cada nome continue legível.
+  const placed = [];
+  for (const a of agentPositions()) {
+    const job = team.jobs.find((j) => j.id === a.id) || a.job;
+    if (!job) continue;
+    const c = state.cards.find((k) => k.id === job.cardId);
+    // O time enxerga quem ainda deve a resposta daquele agente.
+    const quiz = job.question;
+    const badge = !quiz
+      ? ""
+      : quiz.chosen === null
+        ? " · ?"
+        : quiz.correct
+          ? " · ✓"
+          : " · ✗";
+    const label = `${job.playerName} · ${Math.max(0, Math.ceil(job.endsAt - now))}s${badge}`;
+    ctx.font = `800 ${mobile ? 10 : 12}px Nunito`;
+    const w = ctx.measureText(label).width + (mobile ? 30 : 36),
+      h = mobile ? 20 : 24;
+    const x = a.x - w / 2;
+    let y = a.y - h;
+    for (let guard = 0; guard < 4; guard++) {
+      const clash = placed.find(
+        (p) => Math.abs(p.y - y) < h + 3 && x < p.x + p.w + 6 && p.x < x + w + 6,
+      );
+      if (!clash) break;
+      y = clash.y - h - 5;
+    }
+    placed.push({ x, y, w, h });
+    rect(x, y, w, h, "#0b1e30e8", h / 2, job.conflict ? C.red : team.color);
+    icon(c.icon, x + h / 2, y + h / 2, mobile ? 12 : 14, c.color);
+    text(
+      label,
+      x + h - 2,
+      y + h / 2,
+      mobile ? 10 : 12,
+      job.conflict ? C.red : C.cream,
+      "left",
+      800,
+    );
+  }
+}
+// Barra de contexto no formato de elixir: as unidades que a carta selecionada
+// vai consumir piscam antes do gasto.
+function energyBar(x, y, w, h, energy, cost) {
+  const max = state.story.maxEnergy,
+    gap = mobile ? 3 : 5,
+    cell = (w - gap * (max - 1)) / max;
+  for (let i = 0; i < max; i++) {
+    const cx = x + i * (cell + gap);
+    const full = i + 1 <= energy;
+    const partial = !full && i < energy;
+    rect(cx, y, cell, h, "#132a41", 4, "#ffffff14");
+    if (full || partial)
+      rect(cx, y, partial ? cell * (energy - i) : cell, h, "#a97ff0", 4);
+    const doomed = cost && i >= energy - cost && i < energy;
+    if (doomed && Math.floor(time / 260) % 2 === 0)
+      rect(cx, y, cell, h, "#ffd17c", 4);
+  }
+  text(
+    `${Math.floor(energy)}/${max}`,
+    x + w + 10,
+    y + h / 2,
+    mobile ? 13 : 16,
+    C.gold,
+    "left",
+    900,
+  );
+}
+
+// ── Estudo em campo ─────────────────────────────────────────────────────────
+// A pergunta abre enquanto o agente trabalha e ocupa o lugar do baralho: é o
+// que impede pontuar só na velocidade de alocar agentes.
+function openQuiz(team) {
+  if (!state.me) return null;
+  return (
+    team.jobs
+      .filter(
+        (j) =>
+          j.question &&
+          j.question.askedTo === state.me &&
+          j.question.chosen === null,
+      )
+      .sort((a, b) => a.id - b.id)[0] || null
+  );
+}
+async function answerQuiz(jobId, option) {
+  return work(async () => {
+    const response = await api(
+      `/api/rooms/${state.code}/action`,
+      { action: "answer", jobId, option },
+      key,
+    );
+    apply(response.state);
+    const result = response.result;
+    if (result?.question) {
+      quizFx.reveal = result.question;
+      quizFx.revealAt = time;
+      if (result.correct) {
+        world?.deploy?.(result.siteId, C.gold);
+        boosted.add(jobId);
+        boostFx = { siteId: result.siteId, at: time };
+      }
+      announcer.textContent = result.correct
+        ? `Resposta certa. ${result.question.why}`
+        : `Resposta errada. ${result.question.why}`;
+    }
+    tone(Boolean(result?.correct));
+  });
+}
+// Mesma construção de button(): sombra, gradiente, brilho no topo e elevação no
+// foco. Só o texto quebra em linhas e o estado pinta certo, errado ou apagado.
+function choice(id, x, y, w, h, index, label, fn, options = {}) {
+  const { disabled = false, mark = null, shake = 0, size = 14 } = options;
+  const active = (hover === id || focus === id) && !disabled && !mark;
+  const dy = active ? -2 : 0;
+  const palettes = {
+    idle: ["#36516a", "#243b50", "#132639", "#748ca066", C.cream],
+    correct: ["#a5eaba", "#5bba83", "#286343", "#e8fff0", "#123626"],
+    wrong: ["#ee9d89", "#c0645b", "#6a363d", "#ffe4d9", "#4a1f22"],
+    faded: ["#27394b", "#1a2b3b", "#0e1d2b", "#5f778a2e", "#7f97a8"],
+  };
+  const p = palettes[mark || (disabled ? "faded" : "idle")];
+  ctx.save();
+  ctx.translate(shake, dy);
+  rect(x, y + 5, w, h, p[2], 12, "#0b192a");
+  grad(x, y, w, h, p[0], p[1], 12, p[3]);
+  line(x + 12, y + 3, x + w - 12, y + 3, "#ffffff44");
+  // Só a alternativa certa e a escolhida recebem marca. As demais mantêm o
+  // número, senão um "×" nelas leria como se tivessem sido respondidas.
+  const marked = mark === "correct" || mark === "wrong";
+  if (!marked) {
+    rect(x + 12, y + h / 2 - 13, 26, 26, "#0d1f3199", 8, "#ffffff26");
+    text(
+      String(index + 1),
+      x + 25,
+      y + h / 2,
+      14,
+      mark === "faded" ? "#6d8698" : C.gold,
+      "center",
+      900,
+    );
+  } else {
+    // O pop do ícone marca o instante da correção, sem trocar o layout da linha.
+    const pop = clamp((time - quizFx.revealAt) / 260, 0, 1);
+    ctx.save();
+    ctx.translate(x + 25, y + h / 2);
+    ctx.scale(0.4 + 0.6 * pop, 0.4 + 0.6 * pop);
+    icon(mark === "correct" ? "check" : "cross", 0, 0, 26, p[4]);
+    ctx.restore();
+  }
+  wrap(label, x + 48, y + h / 2 - (size > 13 ? 0 : 0), w - 62, size, p[4], 17, 2);
+  ctx.restore();
+  hit(id, x, y, w, h, `Alternativa ${index + 1}: ${label}`, fn, disabled);
+}
+
+// Chamada compacta: a pergunta continua aberta e cronometrada enquanto a pessoa
+// volta a jogar cartas.
+function quizCallback(job, now) {
+  const left = Math.max(0, job.endsAt - now),
+    urgent = left <= 4;
+  const sx = mobile ? 18 : 180,
+    sw = mobile ? W - 36 : 1080,
+    sy = mobile ? sceneRect().y + sceneRect().h + 12 : 646,
+    sh = mobile ? 44 : 42;
+  panel(sx, sy, sw, sh);
+  icon("brain", sx + 24, sy + sh / 2, 21, C.gold);
+  pill(
+    job.question.topic.toUpperCase(),
+    sx + 42,
+    sy + sh / 2 - 14,
+    C.gold,
+    mobile ? 92 : 124,
+  );
+  if (!mobile)
+    text(
+      job.question.prompt,
+      sx + 180,
+      sy + sh / 2,
+      14,
+      C.cream,
+      "left",
+      700,
+    );
+  text(
+    `${Math.ceil(left)}s`,
+    sx + sw - (mobile ? 118 : 150),
+    sy + sh / 2,
+    mobile ? 14 : 16,
+    urgent ? C.red : C.muted,
+    "right",
+    900,
+  );
+  button(
+    "quiz-open",
+    sx + sw - (mobile ? 106 : 138),
+    sy + (sh - 30) / 2,
+    mobile ? 88 : 114,
+    30,
+    `Responder +${state.study.bonus}`,
+    () => {
+      quizFx.minimized = false;
+      quizFx.openedAt = time;
+    },
+    { kind: urgent ? "gold" : "blue", small: true },
+  );
+}
+function quizPanel(team, now) {
+  const pending = openQuiz(team);
+  if (pending && quizFx.jobId !== pending.id) {
+    quizFx.jobId = pending.id;
+    quizFx.openedAt = time;
+    quizFx.reveal = null;
+    quizFx.minimized = false;
+  }
+  const revealFor = state.study.revealSeconds * 1000;
+  const revealing =
+    !pending && quizFx.reveal && time - quizFx.revealAt < revealFor;
+  if (!pending && !revealing) {
+    if (!pending) quizFx.jobId = null;
+    return false;
+  }
+  const question = pending ? pending.question : quizFx.reveal;
+  if (pending && quizFx.minimized) {
+    quizCallback(pending, now);
+    return false;
+  }
+  const answered = Boolean(quizFx.reveal) && !pending;
+  // Duas batidas: primeiro a linha escolhida é marcada, depois a explicação
+  // toma o lugar das alternativas.
+  const since = time - quizFx.revealAt;
+  const explaining = answered && since >= 420;
+  const shake =
+    answered && !quizFx.reveal.correct && since < 420
+      ? Math.sin(since / 26) * (1 - since / 420) * 9
+      : 0;
+
+  const map = sceneRect();
+  const pad = mobile ? 14 : 24;
+  const qx = mobile ? 18 : 180,
+    qw = mobile ? W - 36 : 1080;
+  const promptSize = mobile ? 14 : 19,
+    promptLine = mobile ? 19 : 25,
+    headH = mobile ? 56 : 64,
+    gap = 6;
+  // No computador a altura sai do conteúdo medido; no celular ela é o que sobra
+  // abaixo do mapa, e são as alternativas que cedem espaço.
+  const promptLines = measureLines(
+    question.prompt,
+    qw - pad * 2,
+    promptSize,
+    2,
+  );
+  const oh = mobile
+    ? clamp((H - 14 - (map.y + map.h + 10) - headH - 40 - 30) / 3 - gap, 34, 50)
+    : 44;
+  const bodyH = headH + promptLines * promptLine + 10 + 3 * oh + 2 * gap;
+  const qy = mobile
+    ? map.y + map.h + 10
+    : clamp(888 - (bodyH + 16), 604, 700);
+  const qh = mobile ? H - 14 - qy : bodyH + 16;
+  // Entrada: sobe e aparece. O deslocamento entra nas coordenadas, e não numa
+  // transformação, para a área clicável nunca sair de baixo do desenho.
+  const grow = clamp((time - quizFx.openedAt) / 220, 0, 1);
+  const ease = 1 - Math.pow(1 - grow, 3);
+  const lift = (1 - ease) * 26;
+  const y0 = qy + lift;
+  ctx.save();
+  ctx.globalAlpha = 0.25 + 0.75 * ease;
+  panel(qx, y0, qw, qh);
+
+  const left = pending ? Math.max(0, pending.endsAt - now) : 0;
+  const span = pending
+    ? Math.max(0.001, pending.endsAt - pending.startedAt)
+    : 1;
+  const fraction = pending ? clamp(left / span, 0, 1) : 0;
+  const urgent = pending && left <= 4;
+  rect(qx + 8, y0 + 8, qw - 16, 5, "#0b1c2e", 3);
+  if (pending)
+    rect(
+      qx + 8,
+      y0 + 8,
+      (qw - 16) * fraction,
+      5,
+      urgent && Math.floor(time / 260) % 2 === 0 ? C.red : C.gold,
+      3,
+    );
+
+  // Cabeçalho montado da direita para a esquerda: relógio, saída para o baralho
+  // e o contexto restante, que a janela esconde ao cobrir a barra.
+  const head = y0 + (mobile ? 30 : 36);
+  let edge = qx + qw - pad;
+  if (pending) {
+    text(
+      `${Math.ceil(left)}s`,
+      edge,
+      head,
+      mobile ? 17 : 21,
+      urgent ? C.red : C.cream,
+      "right",
+      900,
+    );
+    ctx.font = `900 ${mobile ? 17 : 21}px Nunito`;
+    edge -= ctx.measureText(`${Math.ceil(left)}s`).width + 16;
+    // Sem esta saída a pergunta congelaria o baralho e o time perderia o
+    // paralelismo entre frentes, que é justamente o que a partida ensina.
+    const bw = mobile ? 76 : 96;
+    button(
+      "quiz-later",
+      edge - bw,
+      head - 15,
+      bw,
+      30,
+      "Baralho",
+      () => (quizFx.minimized = true),
+      { kind: "dark", small: true },
+    );
+    edge -= bw + 16;
+  }
+  const energy = currentEnergy(team),
+    fuel = `${Math.floor(energy)}/${state.story.maxEnergy}`;
+  ctx.font = `800 ${mobile ? 12 : 13}px Nunito`;
+  text(fuel, edge, head, mobile ? 12 : 13, C.muted, "right", 800);
+  icon("gem", edge - ctx.measureText(fuel).width - 11, head, 17, "#c5a3ff");
+  const capLeft = edge - ctx.measureText(fuel).width - 26;
+  if (answered) {
+    const won = quizFx.reveal.correct,
+      label = won ? `CERTO · +${state.study.bonus} PONTOS` : "RESPOSTA ERRADA";
+    ctx.font = "800 12px Nunito";
+    pill(
+      label,
+      qx + pad,
+      head - 14,
+      won ? C.green : C.red,
+      Math.min(ctx.measureText(label).width + 28, capLeft - qx - pad),
+    );
+  } else {
+    icon("brain", qx + pad + 11, head, 22, C.gold);
+    const label = question.topic.toUpperCase();
+    ctx.font = "800 12px Nunito";
+    pill(
+      label,
+      qx + pad + 28,
+      head - 14,
+      C.gold,
+      Math.min(
+        ctx.measureText(label).width + 28,
+        Math.max(60, capLeft - qx - pad - 28),
+      ),
+    );
+  }
+
+  if (!explaining) {
+    wrap(
+      question.prompt,
+      qx + pad,
+      y0 + headH,
+      qw - pad * 2,
+      promptSize,
+      C.cream,
+      promptLine,
+      2,
+    );
+    const oy = y0 + headH + promptLines * promptLine + 10;
+    question.options.forEach((label, i) => {
+      const my = oy + i * (oh + gap);
+      const mark = answered
+        ? i === quizFx.reveal.answer
+          ? "correct"
+          : i === quizFx.reveal.chosen
+            ? "wrong"
+            : "faded"
+        : null;
+      choice(
+        "quiz-" + i,
+        qx + pad,
+        my,
+        qw - pad * 2,
+        oh,
+        i,
+        label,
+        () => answerQuiz(quizFx.jobId, i),
+        {
+          disabled: answered || busy || !connected || grow < 1,
+          mark,
+          shake: mark === "wrong" ? shake : 0,
+          size: mobile ? 12 : 15,
+        },
+      );
+    });
+  } else {
+    // Revelação: fica a alternativa certa, a escolhida quando errou, e o porquê
+    // ocupa o espaço das outras.
+    const rows = [{ index: quizFx.reveal.answer, mark: "correct" }];
+    if (!quizFx.reveal.correct)
+      rows.push({ index: quizFx.reveal.chosen, mark: "wrong" });
+    rows.forEach((row, i) => {
+      choice(
+        "quiz-reveal-" + i,
+        qx + pad,
+        y0 + headH + i * (oh + gap),
+        qw - pad * 2,
+        oh,
+        row.index,
+        question.options[row.index],
+        () => {},
+        { disabled: true, mark: row.mark, size: mobile ? 12 : 15 },
+      );
+    });
+    const wy = y0 + headH + rows.length * (oh + gap) + 8;
+    const fade = clamp((since - 420) / 320, 0, 1);
+    ctx.save();
+    ctx.globalAlpha *= fade;
+    wrap(
+      question.why,
+      qx + pad,
+      wy + 6,
+      qw - pad * 2 - (mobile ? 0 : 150),
+      mobile ? 12 : 14,
+      C.muted,
+      mobile ? 17 : 21,
+      mobile ? 5 : 3,
+    );
+    ctx.restore();
+    button(
+      "quiz-continue",
+      mobile ? qx + pad : qx + qw - pad - 136,
+      mobile ? y0 + qh - 46 : y0 + qh - 54,
+      mobile ? qw - pad * 2 : 136,
+      mobile ? 34 : 40,
+      "Continuar",
+      () => {
+        quizFx.reveal = null;
+        quizFx.jobId = null;
+      },
+      { kind: "blue", small: true },
+    );
+  }
+  ctx.restore();
+  return true;
+}
+
 function battle() {
   const team = viewTeam(),
     me = state.players.find((p) => p.id === state.me),
@@ -1579,30 +2434,173 @@ function battle() {
   const now = elapsed(),
     seconds = Math.max(0, Math.ceil(state.duration - now)),
     energy = currentEnergy(team),
-    site = team.sites[selectedSite];
-  const card = state.cards.find((c) => c.id === selection),
-    jobs = team.jobs.filter((j) => j.siteId === site.id),
-    built = site.built;
+    site = team.sites[selectedSite],
+    card = state.cards.find((c) => c.id === selection);
   const clock = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+  const estimateFor = (target) => buildProgress(team, target, now);
+
+  // O acerto de qualquer pessoa da guilda acende a frente: o time precisa ver
+  // que a obra acelerou, mesmo quem não respondeu.
+  for (const job of team.jobs)
+    if (job.question?.correct && !boosted.has(job.id)) {
+      boosted.add(job.id);
+      boostFx = { siteId: job.siteId, at: time };
+      world?.deploy?.(job.siteId, C.gold);
+    }
+
+  // ── Frentes no mapa ────────────────────────────────────────────────────────
+  const points = targetPositions(),
+    boxes = bannerBoxes(points, Boolean(card));
+  points.forEach((p) => {
+    const target = team.sites[p.id],
+      aiming = aimedSite === p.id,
+      preview = card ? previewPlay(card, target, team, energy) : null,
+      estimate = estimateFor(target);
+    if (!world) shield(p.x, p.y - 46, mobile ? 50 : 74, team.color, target.icon);
+    const band = siteBanner(
+      p,
+      boxes.get(p.id),
+      target,
+      team,
+      preview,
+      aiming,
+      estimate,
+    );
+    const ready = estimate >= 100 && !team.jobs.some((j) => j.siteId === p.id);
+    const chosen = selectedSite === p.id;
+    if (ready && target.level < 3 && !card) {
+      const label = target.reviewed ? "Entregar +100" : "Entregar sem revisão";
+      const bw = mobile ? 150 : 196;
+      if (chosen)
+        button(
+          "deliver",
+          p.x - bw / 2,
+          p.y + (mobile ? 8 : 12),
+          bw,
+          mobile ? 34 : 40,
+          label,
+          () => command("deliver", { siteId: selectedSite }),
+          {
+            kind: target.reviewed ? "green" : "dark",
+            small: true,
+            disabled: !canPlay,
+          },
+        );
+      else {
+        // A largura acompanha o texto: com valor fixo o rótulo transbordava a
+        // pílula e a primeira letra ficava ilegível sobre o terreno.
+        const label = target.reviewed
+          ? mobile
+            ? "PRONTA"
+            : "PRONTA · TOQUE AQUI"
+          : "FALTA REVISAR";
+        ctx.font = "800 12px Nunito";
+        const pw = ctx.measureText(label).width + 28;
+        pill(
+          label,
+          p.x - pw / 2,
+          p.y + (mobile ? 10 : 14),
+          target.reviewed ? C.green : C.gold,
+          pw,
+        );
+      }
+    }
+    hit(
+      "site-" + p.id,
+      band.bx - 6,
+      band.by - 6,
+      band.bw + 12,
+      p.y - band.by + (mobile ? 16 : 22),
+      `${target.name}, nível ${target.level} de 3, construção ${Math.round(estimate)} por cento${
+        preview ? `. ${card.name}: ${preview.hint}` : ""
+      }`,
+      () => {
+        selectedSite = p.id;
+        if (selection && canPlay) return playCard(selection, p.id);
+      },
+    );
+  });
+  agentChips(team, now);
+  // O botão de entrega precisa existir sempre: o teclado e os testes o alcançam
+  // mesmo quando a frente escolhida ainda não está pronta.
+  if (!controls.some((c) => c.id === "deliver"))
+    hit(
+      "deliver",
+      -400,
+      -400,
+      1,
+      1,
+      `Entregar ${site.name}`,
+      () => command("deliver", { siteId: selectedSite }),
+      true,
+    );
+
+  // ── Painéis nas sobras laterais ────────────────────────────────────────────
   if (!mobile) {
-    panel(26, 106, 239, 488);
-    text("Guildas em campo", 47, 139, 19);
-    text("Toque para acompanhar", 47, 165, 12, C.muted);
+    const guild = state.players.filter((p) => p.teamId === team.id);
+    // O painel acompanha o tamanho da guilda: com duas pessoas ele não pode
+    // abrir um vão de 150 px antes do placar.
+    const seats = Math.max(1, Math.min(5, guild.length)),
+      rosterEnd = 214 + seats * 32 + (guild.length > 5 ? 24 : 0),
+      rankTop = rosterEnd + 42,
+      ranked = Math.min(4, state.teams.length);
+    panel(24, 92, 272, rankTop + ranked * 34 + 52 - 92);
+    shield(60, 128, 44, team.color, team.icon);
+    display(team.name, 92, 120, 26, team.color);
+    text(
+      me ? "sua guilda" : "acompanhando",
+      93,
+      143,
+      12,
+      C.muted,
+      "left",
+      800,
+    );
+    text(team.score, 272, 124, 30, C.gold, "right", 900);
+    line(44, 166, 276, 166, "#6b8ca444");
+    // Quem está na guilda e o que cada pessoa comanda agora. O contexto e os
+    // três agentes são do time inteiro: sem esta lista ninguém percebe que está
+    // disputando o mesmo orçamento com os colegas.
+    text(`Sua guilda · ${guild.length}`, 44, 188, 13, C.muted);
+    guild.slice(0, 5).forEach((p, i) => {
+      const y = 214 + i * 32,
+        job = team.jobs.find((j) => j.playerName === p.name),
+        card = job && state.cards.find((c) => c.id === job.cardId);
+      if (p.id === state.me) rect(38, y - 15, 244, 30, team.color + "1f", 8);
+      rect(48, y - 4, 8, 8, job ? C.green : "#54708733", 4);
+      text(p.name, 66, y, 14, p.id === state.me ? C.cream : C.muted);
+      if (card)
+        text(
+          `${card.name} → ${team.sites[job.siteId].name}`,
+          276,
+          y,
+          11,
+          card.color,
+          "right",
+          800,
+        );
+    });
+    if (guild.length > 5)
+      text(`+${guild.length - 5} na guilda`, 66, 214 + 5 * 32, 11, C.muted);
+    if (!guild.length)
+      text("Ninguém entrou nesta guilda.", 66, 214, 12, C.muted);
+    line(44, rosterEnd + 8, 276, rosterEnd + 8, "#6b8ca444");
+    text("Placar", 44, rosterEnd + 28, 13, C.muted);
     [...state.teams]
       .sort((a, b) => b.score - a.score || a.id - b.id)
-      .slice(0, 7)
+      .slice(0, 4)
       .forEach((t, i) => {
-        const y = 208 + i * 44;
-        if (t.id === team.id) rect(39, y - 19, 211, 38, t.color + "22", 8);
-        shield(58, y, 27, t.color, t.icon);
-        text(t.name, 82, y, 15);
-        text(t.score, 239, y, 20, C.gold, "right", 900);
+        const y = rankTop + 14 + i * 34;
+        if (t.id === team.id) rect(38, y - 15, 244, 30, t.color + "22", 8);
+        shield(58, y, 22, t.color, t.icon);
+        text(t.name, 79, y, 14);
+        text(t.score, 272, y, 17, C.gold, "right", 900);
         hit(
           "watch-" + t.id,
-          39,
-          y - 19,
-          211,
           38,
+          y - 15,
+          244,
+          30,
           "Acompanhar " + t.name,
           () => {
             watchTeam = t.id;
@@ -1613,308 +2611,302 @@ function battle() {
       });
     button(
       "all-rank",
-      47,
-      533,
-      195,
-      34,
+      44,
+      rankTop + ranked * 34 + 14,
+      232,
+      30,
       "Placar completo",
       () => (modal = "ranking"),
       { kind: "dark", small: true },
     );
-    display(team.name, 320, 121, 32, team.color);
-    pill("EM TEMPO REAL", 320, 156, C.green, 150);
+
+    panel(1144, 92, 272, 356);
     display(
       state.paused ? "PAUSA" : clock,
-      955,
-      121,
-      45,
+      1280,
+      130,
+      42,
       seconds <= 30 ? C.red : C.cream,
-      "right",
+      "center",
     );
-    text("até a tempestade fechar a arena", 956, 166, 13, C.muted, "right");
-    panel(1050, 106, 365, 488);
-    text("Contexto da guilda", 1074, 137, 18);
-    text(`${Math.floor(energy)} / 12`, 1389, 137, 22, C.gold, "right", 900);
-    for (let i = 0; i < 12; i++)
-      rect(1075 + i * 26, 163, 21, 13, i < energy ? "#ad8bf0" : "#172c41", 4);
-    text("+0,65/s · orçamento compartilhado", 1075, 199, 13, C.muted);
-    line(1073, 226, 1392, 226, "#6b8ca444");
-    text(`${team.jobs.length} / 3 agentes em campo`, 1075, 253, 17, C.cream);
+    text(
+      "até a tempestade fechar a arena",
+      1280,
+      160,
+      11,
+      C.muted,
+      "center",
+      800,
+    );
+    line(1164, 180, 1396, 180, "#6b8ca444");
+    text(
+      `Agentes em campo ${team.jobs.length}/3`,
+      1164,
+      202,
+      15,
+      C.cream,
+      "left",
+      900,
+    );
+    if (!team.jobs.length)
+      wrap(
+        "Nenhum agente mobilizado. Arraste uma carta até uma frente iluminada.",
+        1164,
+        228,
+        232,
+        13,
+        C.muted,
+        19,
+        3,
+      );
     team.jobs.forEach((j, i) => {
-      const y = 297 + i * 69,
+      const y = 230 + i * 46,
         c = state.cards.find((c) => c.id === j.cardId);
-      icon(c.icon, 1090, y, 26, c.color);
-      text(`${c.name} → ${team.sites[j.siteId].name}`, 1113, y - 8, 15);
+      icon(c.icon, 1178, y + 14, 22, c.color);
       text(
-        `${j.playerName} · ${Math.max(0, Math.ceil(j.endsAt - now))}s`,
-        1113,
-        y + 15,
-        12,
+        `${c.name} → ${team.sites[j.siteId].name}`,
+        1198,
+        y + 7,
+        13,
+        C.cream,
+        "left",
+        800,
+      );
+      text(
+        `${j.playerName} · ${Math.max(0, Math.ceil(j.endsAt - now))}s${j.conflict ? " · conflito" : ""}`,
+        1198,
+        y + 24,
+        11,
         j.conflict ? C.red : C.muted,
       );
     });
-    if (!team.jobs.length)
+    const event = team.log[0];
+    if (event) {
+      line(1164, 376, 1396, 376, "#6b8ca444");
       wrap(
-        "Mobilize agentes arrastando as cartas para as construções da arena.",
-        1075,
-        304,
-        306,
-        16,
-        C.muted,
-        25,
+        event.title,
+        1164,
+        394,
+        232,
+        13,
+        event.kind === "bad" ? C.red : event.kind === "score" ? C.gold : C.green,
+        18,
+        2,
       );
+    }
     button(
       "events",
-      1075,
-      530,
-      314,
-      35,
+      1164,
+      420,
+      232,
+      32,
       "Diário da guilda",
       () => (modal = "events"),
       { kind: "dark", small: true },
     );
+    if (host) {
+      button(
+        "pause",
+        1164,
+        462,
+        112,
+        32,
+        state.paused ? "Retomar" : "Pausar",
+        () => doAction("pause"),
+        { kind: "dark", small: true, disabled: busy || !connected },
+      );
+      button("finish", 1284, 462, 112, 32, "Encerrar", () => {
+        confirm = {
+          title: "Encerrar a arena?",
+          body: "As entregas já concluídas definem o placar final. O trabalho em andamento não soma pontos.",
+          run: () => doAction("finish"),
+        };
+        modal = "confirm";
+      }, { kind: "dark", small: true, disabled: busy || !connected });
+    }
   } else {
-    display(team.name, 20, 90, 28, team.color);
+    display(team.name, 20, 82, 24, team.color);
+    text(team.score, 232, 82, 20, C.gold, "right", 900);
     display(
       state.paused ? "PAUSA" : clock,
       W - 20,
-      90,
-      31,
+      82,
+      28,
       seconds <= 30 ? C.red : C.cream,
       "right",
     );
-    icon("gem", 29, 132, 22, "#c5a3ff");
-    text(`${Math.floor(energy)}/12`, 48, 132, 18, C.cream);
-    for (let i = 0; i < 12; i++)
-      rect(109 + i * 16, 126, 12, 11, i < energy ? "#b48aec" : "#253d56", 3);
-    text(`${team.jobs.length}/3 agentes`, W - 20, 132, 12, C.muted, "right");
-    button(
-      "mobile-rank",
-      20,
-      158,
-      106,
-      31,
-      "Placar",
-      () => (modal = "ranking"),
-      { kind: "dark", small: true },
-    );
-    button("events", 136, 158, 106, 31, "Diário", () => (modal = "events"), {
+    button("mobile-rank", 20, 96, 86, 26, "Placar", () => (modal = "ranking"), {
       kind: "dark",
       small: true,
     });
-  }
-  // Hit regions are tied to the actual projected 3D buildings, including when a card is dragged.
-  targetPositions().forEach((p) => {
-    const target = team.sites[p.id],
-      tw = mobile ? 90 : 126,
-      th = mobile ? 44 : 54;
-    if (!world) {
-      shield(p.x, p.y - 52, mobile ? 52 : 78, team.color, target.icon);
-    }
-    const active = selectedSite === p.id,
-      highlight = Boolean(selection) || active;
-    if (highlight) {
-      ctx.save();
-      ctx.setLineDash([5, 5]);
-      ctx.beginPath();
-      ctx.ellipse(
-        p.x,
-        p.y - 6,
-        mobile ? 48 : 70,
-        mobile ? 19 : 25,
-        0,
-        0,
-        Math.PI * 2,
-      );
-      ctx.strokeStyle = selection ? C.gold : team.color;
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      ctx.restore();
-    }
-    grad(
-      p.x - tw / 2,
-      p.y + 10,
-      tw,
-      th,
-      active ? "#365572" : "#193248",
-      "#102436",
-      10,
-      highlight ? C.gold : "#8298aa66",
-    );
-    text(
-      target.name,
-      p.x,
-      p.y + (mobile ? 23 : 28),
-      mobile ? 13 : 17,
-      C.cream,
-      "center",
-      900,
-    );
-    text(
-      target.level === 3 ? "CONCLUÍDO" : `Nível ${target.level}/3`,
-      p.x,
-      p.y + (mobile ? 40 : 48),
-      11,
-      target.level === 3 ? C.green : C.muted,
-      "center",
-    );
-    const buildJobs = team.jobs.filter(
-      (j) => j.siteId === p.id && j.cardId === "builder",
-    );
-    const estimate = Math.min(
-      100,
-      target.built +
-        buildJobs.reduce(
-          (n, j) =>
-            n +
-            (j.conflict ? 75 : 100) *
-              clamp((now - j.startedAt) / (j.endsAt - j.startedAt), 0, 1),
-          0,
-        ),
-    );
-    rect(p.x - tw / 2 + 6, p.y + th + 6, tw - 12, 4, "#0c1d30", 3);
-    if (estimate > 0)
-      rect(
-        p.x - tw / 2 + 6,
-        p.y + th + 6,
-        ((tw - 12) * estimate) / 100,
-        4,
-        target.faults ? C.red : target.reviewed ? C.green : C.blue,
-        3,
-      );
-    if (target.worktree)
-      icon("branch", p.x - tw / 2 + 9, p.y - 15, 16, C.green);
-    if (target.harness) icon("shield", p.x + tw / 2 - 9, p.y - 15, 16, C.blue);
-    hit(
-      "site-" + p.id,
-      p.x - tw / 2 - 4,
-      p.y - (mobile ? 64 : 96),
-      tw + 8,
-      th + (mobile ? 79 : 111),
-      `${target.name}, nível ${target.level}, construção ${target.built} por cento${selection ? ", aplicar " + card.name : ""}`,
-      () => {
-        selectedSite = p.id;
-        if (selection && canPlay) return playCard(selection, p.id);
-      },
-      false,
-    );
-  });
-  const ix = mobile ? 18 : 307,
-    iy = mobile ? H - 348 : 609,
-    iw = mobile ? W - 36 : 715,
-    ih = mobile ? 169 : 74;
-  panel(ix, iy, iw, ih);
-  text(
-    `${site.name} · nível ${site.level}/3`,
-    ix + 18,
-    iy + 23,
-    mobile ? 18 : 20,
-    C.cream,
-  );
-  const task = jobs[0];
-  let status =
-    site.level === 3
-      ? "Frente concluída. Escolha outro alvo."
-      : task
-        ? `${task.cardId === "builder" ? "Construindo" : "Revisando"} · ${Math.max(0, Math.ceil(task.endsAt - now))}s${task.conflict ? " · conflito!" : ""}`
-        : site.reviewed
-          ? "Revisado. Pronto para entregar."
-          : built >= 100
-            ? "Obra pronta. Envie um Revisor."
-            : built
-              ? "Conflito: falta completar a construção."
-              : "Arraste um Construtor até esta frente.";
-  if (card) status = card.name + ": " + card.description;
-  wrap(
-    status,
-    ix + 18,
-    iy + 50,
-    mobile ? iw - 36 : 410,
-    mobile ? 13 : 13,
-    C.muted,
-    18,
-    mobile ? 2 : 1,
-  );
-  const deliverable = built >= 100 && !jobs.length && site.level < 3;
-  const label =
-    site.level === 3
-      ? "Frente concluída"
-      : site.reviewed
-        ? "Entregar  +100"
-        : site.harness
-          ? "Entrega protegida"
-          : "Entregar sem revisão  +40";
-  button(
-    "deliver",
-    mobile ? ix + 14 : ix + 448,
-    mobile ? iy + 110 : iy + 16,
-    mobile ? iw - 28 : 251,
-    40,
-    label,
-    () => command("deliver", { siteId: selectedSite }),
-    {
-      kind: site.reviewed ? "green" : site.harness ? "blue" : "gold",
+    button("events", 112, 96, 86, 26, "Diário", () => (modal = "events"), {
+      kind: "dark",
       small: true,
-      disabled: !canPlay || !deliverable,
-    },
-  );
-  if (mobile) {
+    });
     text(
-      `${site.worktree ? "✓" : "○"} Worktree    ${site.harness ? "✓" : "○"} Harness    ${site.faults} falhas`,
-      ix + 18,
-      iy + 87,
-      12,
-      site.faults ? C.red : C.muted,
+      `${team.jobs.length}/3 agentes`,
+      W - 20,
+      109,
+      11,
+      C.muted,
+      "right",
+      800,
     );
+    // A sobra abaixo do mapa vira a lista da guilda: no celular é o único lugar
+    // em que dá para ver que o contexto e os agentes são disputados com o time.
+    const map = sceneRect(),
+      stripY = map.y + map.h + 12,
+      stripH = H - 196 - stripY;
+    // A chamada da pergunta usa esta mesma faixa; uma de cada vez.
+    if (stripH >= 52 && !openQuiz(team) && !quizFx.reveal) {
+      const guild = state.players.filter((p) => p.teamId === team.id);
+      panel(20, stripY, W - 40, stripH);
+      text(`Sua guilda · ${guild.length}`, 36, stripY + 18, 12, C.muted);
+      const seats = Math.max(1, Math.floor((stripH - 24) / 22));
+      guild.slice(0, seats).forEach((p, i) => {
+        const y = stripY + 38 + i * 22,
+          job = team.jobs.find((j) => j.playerName === p.name),
+          c = job && state.cards.find((k) => k.id === job.cardId);
+        rect(36, y - 4, 7, 7, job ? C.green : "#54708733", 4);
+        text(
+          p.name,
+          52,
+          y,
+          12,
+          p.id === state.me ? C.cream : C.muted,
+          "left",
+          p.id === state.me ? 900 : 700,
+        );
+        text(
+          c ? `${c.name} → ${team.sites[job.siteId].name}` : "sem agente",
+          W - 36,
+          y,
+          10,
+          c ? c.color : "#6d8698",
+          "right",
+          800,
+        );
+      });
+      if (guild.length > seats)
+        text(
+          `+${guild.length - seats}`,
+          W - 36,
+          stripY + 18,
+          11,
+          C.muted,
+          "right",
+        );
+    }
+    if (host) {
+      button(
+        "pause",
+        204,
+        96,
+        70,
+        26,
+        state.paused ? "Retomar" : "Pausar",
+        () => doAction("pause"),
+        { kind: "dark", small: true, disabled: busy || !connected },
+      );
+      button("finish", 280, 96, 70, 26, "Encerrar", () => {
+        confirm = {
+          title: "Encerrar a arena?",
+          body: "As entregas já concluídas definem o placar final.",
+          run: () => doAction("finish"),
+        };
+        modal = "confirm";
+      }, { kind: "dark", small: true, disabled: busy || !connected });
+    }
   }
-  const deckY = mobile ? H - 157 : 710,
+
+  // ── Contexto e baralho ─────────────────────────────────────────────────────
+  const barY = mobile ? H - 184 : 694,
+    barX = mobile ? 20 : 320,
+    barW = mobile ? W - 92 : 760;
+  const studying = openQuiz(team) || quizFx.reveal;
+  icon("gem", barX - 16, barY + (mobile ? 9 : 11), mobile ? 18 : 22, "#c5a3ff");
+  energyBar(
+    barX + 6,
+    barY,
+    barW,
+    mobile ? 18 : 22,
+    energy,
+    card ? card.cost : 0,
+  );
+  if (!mobile)
+    text(
+      "contexto compartilhado da guilda · +0,65/s",
+      barX + barW + 66,
+      barY + 11,
+      12,
+      C.muted,
+    );
+  // A janela do estudo ocupa o lugar do baralho: enquanto ela está aberta, jogar
+  // outra carta não é opção. É esse custo que faz a pergunta valer atenção.
+  if (quizPanel(team, now)) return;
+  const deckY = mobile ? H - 154 : 730,
     cw = mobile ? 95 : 252,
-    ch = mobile ? 113 : 142,
-    dx = mobile ? 18 : 177,
-    gap = mobile ? 5 : 24;
+    ch = mobile ? 132 : 148,
+    gap = mobile ? 6 : 24,
+    dx = (W - (4 * cw + 3 * gap)) / 2;
   state.cards.forEach((c, i) => {
     const x = dx + i * (cw + gap),
       y = deckY,
       selected = selection === c.id,
-      disabled = !canPlay || energy < c.cost;
+      affordable = energy + 1e-8 >= c.cost,
+      disabled = !canPlay || !affordable;
     ctx.save();
-    if (disabled) ctx.globalAlpha = 0.48;
+    if (disabled) ctx.globalAlpha = 0.46;
     panel(x, y, cw, ch);
     rect(x + 6, y + 5, cw - 12, 4, c.color, 2);
     if (selected) {
-      round(x - 2, y - 3, cw + 4, ch + 6, 16);
-      ctx.lineWidth = 3;
+      round(x - 3, y - 4, cw + 6, ch + 8, 17);
+      ctx.lineWidth = 3.5;
       ctx.strokeStyle = C.gold;
       ctx.stroke();
     }
     portrait(
       c.model,
-      x + (mobile ? 20 : 6),
-      y + 8,
+      x + (mobile ? 20 : 8),
+      y + 10,
       mobile ? 55 : 84,
-      mobile ? 64 : 106,
+      mobile ? 66 : 106,
     );
-    icon("gem", x + cw - 18, y + 25, 25, "#bd8ef1");
-    text(c.cost, x + cw - 18, y + 25, 12, C.cream, "center", 900);
+    icon("gem", x + cw - 19, y + 26, 26, "#bd8ef1");
+    text(c.cost, x + cw - 19, y + 26, 12, C.cream, "center", 900);
     text(
       c.name,
-      mobile ? x + cw / 2 : x + 91,
-      y + (mobile ? 84 : 35),
-      mobile ? 12 : 21,
+      mobile ? x + cw / 2 : x + 96,
+      y + (mobile ? 88 : 38),
+      mobile ? 12 : 20,
       C.cream,
       mobile ? "center" : "left",
       900,
     );
-    if (mobile)
+    if (mobile) {
       text(
-        ["12 s", "Isolar", "6 s+", "Proteger"][i],
+        ["Constrói", "Isola", "Valida", "Protege"][i],
         x + cw / 2,
-        y + 102,
+        y + 98,
         10,
         c.color,
         "center",
+        800,
       );
-    else wrap(c.description, x + 92, y + 65, cw - 112, 12, C.muted, 18, 4);
+      text(
+        [
+          `${state.story.buildSeconds} s`,
+          "permanente",
+          `${state.story.reviewSeconds} s +`,
+          "permanente",
+        ][i],
+        x + cw / 2,
+        y + 113,
+        9,
+        C.muted,
+        "center",
+      );
+    } else wrap(c.description, x + 96, y + 66, cw - 116, 12, C.muted, 18, 4);
     ctx.restore();
     hit(
       "card-" + c.id,
@@ -1922,88 +2914,49 @@ function battle() {
       y,
       cw,
       ch,
-      `${i + 1}. ${c.name}, ${c.cost} contexto. ${c.description}`,
+      `${i + 1}. ${c.name}, ${c.cost} de contexto. ${c.description}`,
       () => {
         selection = selection === c.id ? null : c.id;
       },
       disabled,
     );
   });
-  const event = team.log[0];
-  if (!mobile && event) {
-    const ex = 32,
-      ey = 620;
-    wrap(
-      event.title,
-      ex,
-      ey,
-      231,
-      16,
-      event.kind === "bad" ? C.red : C.gold,
-      23,
-      2,
-    );
-    wrap(event.body, ex, ey + 60, 231, 12, C.muted, 19, 7);
-  }
-
   const hint = card
-    ? `Arraste ${card.name} até um alvo iluminado`
-    : "Toque numa carta e depois na construção · arrastar também funciona";
-  text(hint, W / 2, mobile ? H - 20 : 881, mobile ? 10 : 14, C.gold, "center");
-  if (host) {
-    button(
-      "pause",
-      mobile ? 253 : 1075,
-      mobile ? 158 : 619,
-      mobile ? 74 : 147,
-      34,
-      state.paused ? "Retomar" : "Pausar",
-      () => doAction("pause"),
-      { kind: "dark", small: true, disabled: busy || !connected },
-    );
-    button(
-      "finish",
-      mobile ? 337 : 1237,
-      mobile ? 158 : 619,
-      mobile ? 75 : 151,
-      34,
-      "Encerrar",
-      () => {
-        confirm = {
-          title: "Encerrar a arena?",
-          body: "As entregas já concluídas definem o placar final. O trabalho em andamento não soma pontos.",
-          run: () => doAction("finish"),
-        };
-        modal = "confirm";
-      },
-      { kind: "dark", small: true, disabled: busy || !connected },
-    );
-  }
+    ? `Solte ${card.name} numa frente iluminada · dourado libera, vermelho recusa`
+    : "Escolha uma carta e toque na frente · arrastar também funciona";
+  text(
+    hint,
+    W / 2,
+    mobile ? H - 16 : 892,
+    mobile ? 10 : 13,
+    C.gold,
+    "center",
+    800,
+  );
   if (!me && !mobile)
     text(
       "Orquestrador: acompanhe as guildas pelo placar.",
-      1230,
-      685,
+      160,
+      408,
       12,
       C.muted,
       "center",
     );
-  if (state.paused) {
+  if (state.paused)
     pill(
       "PAUSADO · agentes e contexto congelados",
       W / 2 - 172,
-      mobile ? 206 : 198,
+      mobile ? 130 : 100,
       C.gold,
       344,
     );
-  }
   if (drag?.active) {
     const c = state.cards.find((c) => c.id === drag.cardId);
     ctx.save();
-    ctx.globalAlpha = 0.85;
-    panel(pointer.x - 44, pointer.y - 67, 88, 97);
-    icon(c.icon, pointer.x, pointer.y - 28, 37, c.color);
-    text(c.name, pointer.x, pointer.y + 7, 12, C.cream, "center");
+    ctx.globalAlpha = 0.9;
+    panel(pointer.x - 46, pointer.y - 70, 92, 100);
+    icon(c.icon, pointer.x, pointer.y - 30, 38, c.color);
+    text(c.name, pointer.x, pointer.y + 6, 12, C.cream, "center", 900);
     ctx.restore();
   }
 }
@@ -2169,15 +3122,19 @@ function results() {
       ctx.restore();
     }
 }
+// Na batalha o mapa é o palco: ocupa a largura inteira e os painéis passam a
+// ocupar as sobras laterais, que a ilha na diagonal não alcança.
 function sceneRect() {
   if (mobile) {
     if (screen === "home") return { x: -25, y: 185, w: 480, h: 255 };
     if (screen === "battle")
-      return { x: 0, y: 190, w: 430, h: Math.max(190, H - 578) };
+      // A altura reserva a faixa da guilda: no celular ver o time vale mais do
+      // que os últimos 40 px de mapa.
+      return { x: 0, y: 126, w: 430, h: clamp(H - 410, 230, 340) };
     return { x: 190, y: 95, w: 290, h: 290 };
   }
   if (screen === "home") return { x: 475, y: 134, w: 944, h: 535 };
-  if (screen === "battle") return { x: 255, y: 188, w: 810, h: 403 };
+  if (screen === "battle") return { x: 0, y: 78, w: 1440, h: 600 };
   if (screen === "lobby") return { x: 955, y: 365, w: 470, h: 410 };
   return { x: 0, y: 150, w: 1440, h: 570 };
 }
@@ -2209,25 +3166,34 @@ function draw(t) {
   ctx.translate(ox, oy);
   ctx.scale(scale, scale);
   controls = [];
+  aim();
   const sr = sceneRect();
   if (world)
-    world.draw(
-      t,
-      {
+    world.draw({
+      time: t,
+      rect: {
         x: sr.x * scale + ox,
         y: sr.y * scale + oy,
         w: sr.w * scale,
         h: sr.h * scale,
       },
-      innerWidth,
-      innerHeight,
+      width: innerWidth,
+      height: innerHeight,
       reduced,
-      screen === "battle" ? viewTeam() : null,
-      elapsed(),
+      team: screen === "battle" ? viewTeam() : null,
+      elapsed: elapsed(),
+      progress:
+        screen === "battle" && viewTeam()
+          ? viewTeam().sites.map((site) =>
+              buildProgress(viewTeam(), site, elapsed()),
+            )
+          : null,
       selectedSite,
-      selection,
-      state?.paused,
-    );
+      selectedCard: selection,
+      targetSite: aimedSite,
+      legal: aimLegality,
+      paused: state?.paused,
+    });
   if (screen === "results") {
     rect(0, 0, W, H, "#0d233ac9", 0);
   }
@@ -2387,8 +3353,14 @@ addEventListener("keydown", (e) => {
     screen === "battle" &&
     !modal
   ) {
-    const card = state.cards[Number(e.key) - 1];
-    controls.find((c) => c.id === "card-" + card.id && !c.disabled)?.fn();
+    // Com a pergunta aberta, os mesmos números escolhem a alternativa.
+    const slot = Number(e.key) - 1;
+    const option = controls.find((c) => c.id === "quiz-" + slot && !c.disabled);
+    if (option) return option.fn();
+    if (controls.some((c) => c.id.startsWith("quiz-"))) return;
+    const card = state.cards[slot];
+    if (card)
+      controls.find((c) => c.id === "card-" + card.id && !c.disabled)?.fn();
   }
 });
 await Promise.all([

@@ -1,5 +1,5 @@
 import { randomBytes, randomInt } from "node:crypto";
-import { CARDS, SITES, STORY } from "./missions.mjs";
+import { CARDS, QUESTIONS, SITES, STORY, STUDY } from "./missions.mjs";
 export const TEAM_STYLES = [
   ["Aurora", "#54baff", "shield"],
   ["Brasa", "#ff8768", "swords"],
@@ -11,6 +11,34 @@ export const TEAM_STYLES = [
   ["Rosa", "#ff96bc", "scroll"],
 ];
 const token = () => randomBytes(24).toString("hex");
+// Cada guilda recebe as perguntas numa ordem própria, para que times vizinhos
+// não copiem a resposta um do outro.
+function shuffled(length) {
+  const order = [...Array(length).keys()];
+  for (let i = length - 1; i > 0; i--) {
+    const j = randomInt(i + 1);
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  return order;
+}
+// O que o navegador pode ver de uma pergunta. O índice correto e a explicação
+// só entram depois da resposta: antes disso eles vazariam pelo stream.
+function quizView(job) {
+  const question = QUESTIONS.find((q) => q.id === job.questionId);
+  if (!question) return null;
+  const done = Boolean(job.answered);
+  return {
+    id: question.id,
+    topic: question.topic,
+    prompt: question.prompt,
+    options: question.options,
+    askedTo: job.askedTo,
+    chosen: job.answered ? job.answered.option : null,
+    correct: job.answered ? job.answered.correct : null,
+    answer: done ? question.answer : null,
+    why: done ? question.why : null,
+  };
+}
 export class GameError extends Error {
   constructor(message, status = 400) {
     super(message);
@@ -90,11 +118,14 @@ export class Arena {
           built: 0,
           reviewed: false,
           faults: 0,
-          worktree: false,
+          worktrees: 0,
           harness: false,
+          contributors: 0,
         })),
         jobs: [],
         log: [],
+        quiz: shuffled(QUESTIONS.length),
+        quizAt: 0,
         stats: {
           deliveries: 0,
           safe: 0,
@@ -103,6 +134,8 @@ export class Arena {
           reviews: 0,
           blocked: 0,
           incidents: 0,
+          learned: 0,
+          missed: 0,
         },
       })),
     };
@@ -197,6 +230,91 @@ export class Arena {
     check(player, "Entre em uma guilda para jogar.", 403);
     return { player, team: room.teams[player.teamId] };
   }
+  // Ritmo da obra: cada Construtor isolado soma uma frente de trabalho; quem
+  // divide checkout com outro rende metade. É isso que faz dois agentes
+  // construírem em metade do tempo — e faz o conflito não render nada.
+  buildRate(team, site) {
+    if (site.level >= STORY.maxLevel || site.built >= 100) return 0;
+    const per = 100 / STORY.buildSeconds;
+    return team.jobs.reduce(
+      (rate, job) =>
+        job.cardId === "builder" && job.siteId === site.id
+          ? rate + per * (job.conflict ? STORY.conflictRate : 1)
+          : rate,
+      0,
+    );
+  }
+  // Canteiros livres desta frente. Cada worktree é um diretório, e cabe um
+  // agente em cada; quem não acha canteiro cai no checkout compartilhado.
+  freeSlots(team, site) {
+    const taken = new Set(
+      team.jobs.filter((j) => j.cardId === "builder").map((j) => j.workspace),
+    );
+    const slots = [];
+    for (let i = 0; i < site.worktrees; i++)
+      if (!taken.has(`wt:${site.id}:${i}`)) slots.push(`wt:${site.id}:${i}`);
+    return slots;
+  }
+  // Conflito é ocupar o mesmo diretório, não a mesma frente.
+  settle(team) {
+    const crowd = new Map();
+    for (const job of team.jobs)
+      if (job.cardId === "builder")
+        crowd.set(job.workspace, (crowd.get(job.workspace) || 0) + 1);
+    for (const job of team.jobs)
+      if (job.cardId === "builder")
+        job.conflict = crowd.get(job.workspace) > 1;
+  }
+  // Relógio do agente: projeção do fim da obra com o ritmo atual. Serve ao
+  // contador na tela e ao prazo da pergunta.
+  retime(room, team) {
+    for (const site of team.sites) {
+      const rate = this.buildRate(team, site),
+        left = rate > 0 ? (100 - site.built) / rate : STORY.buildSeconds;
+      for (const job of team.jobs)
+        if (job.cardId === "builder" && job.siteId === site.id)
+          job.endsAt = room.elapsed + left;
+    }
+  }
+  // Avança as obras de todas as guildas até um instante.
+  soak(room, to) {
+    const dt = to - room.elapsed;
+    if (dt > 0)
+      for (const team of room.teams)
+        for (const site of team.sites) {
+          const rate = this.buildRate(team, site);
+          if (rate > 0) site.built = Math.min(100, site.built + rate * dt);
+        }
+    room.elapsed = to;
+  }
+  finishBuild(room, team, site) {
+    site.built = 100;
+    site.reviewed = false;
+    const crew = team.jobs.filter(
+      (j) => j.cardId === "builder" && j.siteId === site.id,
+    );
+    team.jobs = team.jobs.filter(
+      (j) => !(j.cardId === "builder" && j.siteId === site.id),
+    );
+    const extra = Math.max(0, site.contributors - 1);
+    this.log(
+      room,
+      team,
+      crew.some((j) => j.conflict) ? "bad" : "good",
+      `${site.name}: obra pronta`,
+      crew.length > 1
+        ? `${crew.length} Construtores fecharam o nível juntos. Agora a revisão precisa convergir as frentes: +${extra * STORY.integrationSeconds} s de integração.`
+        : "Obra pronta. Envie um Revisor para validar antes da entrega.",
+      site.id,
+    );
+  }
+  reviewSeconds(site) {
+    return (
+      STORY.reviewSeconds +
+      site.faults * 3 +
+      Math.max(0, site.contributors - 1) * STORY.integrationSeconds
+    );
+  }
   playable(room) {
     check(
       room.phase === "playing" && !room.paused,
@@ -218,7 +336,10 @@ export class Arena {
       "Contexto insuficiente. Aguarde a regeneração do time.",
     );
     if (cardId === "worktree")
-      check(!site.worktree, "Esta frente já possui uma worktree.");
+      check(
+        site.worktrees < STORY.maxWorktrees,
+        `Esta frente já tem ${STORY.maxWorktrees} canteiros isolados.`,
+      );
     if (cardId === "harness")
       check(!site.harness, "O harness já está protegendo esta frente.");
     if (cardId === "builder") {
@@ -248,8 +369,8 @@ export class Arena {
         "Os 3 agentes da guilda estão ocupados. Aguarde uma tarefa terminar.",
       );
     team.energy = Math.max(0, team.energy - card.cost);
-    if (cardId === "worktree" || cardId === "harness") {
-      site[cardId] = true;
+    if (cardId === "harness") {
+      site.harness = true;
       this.log(
         room,
         team,
@@ -260,6 +381,31 @@ export class Arena {
       );
       return;
     }
+    if (cardId === "worktree") {
+      site.worktrees++;
+      // Um canteiro novo tira um Construtor do checkout compartilhado: isolar
+      // durante o conflito encerra o conflito, como no repositório de verdade.
+      const stuck = team.jobs.filter(
+        (j) => j.cardId === "builder" && j.siteId === siteId && j.conflict,
+      );
+      const slot = this.freeSlots(team, site)[0];
+      if (stuck.length && slot) stuck[0].workspace = slot;
+      this.settle(team);
+      this.retime(room, team);
+      this.log(
+        room,
+        team,
+        "good",
+        `${player.name}: canteiro ${site.worktrees} em ${site.name}`,
+        stuck.length && slot
+          ? `${stuck[0].playerName} saiu do checkout compartilhado e o conflito acabou. A obra volta ao ritmo cheio.`
+          : `${site.name} aceita ${site.worktrees + 1} Construtores em paralelo. Cada frente extra soma ${STORY.integrationSeconds} s de integração na revisão.`,
+        siteId,
+      );
+      return;
+    }
+    // A pergunta acompanha a tarefa: enquanto o agente trabalha, quem o enviou
+    // precisa justificar a decisão. Sem isso, alocar rápido bastava para pontuar.
     const job = {
       id: ++room.sequence,
       cardId,
@@ -270,21 +416,28 @@ export class Arena {
         room.elapsed +
         (cardId === "builder"
           ? STORY.buildSeconds
-          : STORY.reviewSeconds + site.faults * 3),
+          : this.reviewSeconds(site)),
       conflict: false,
+      questionId: QUESTIONS[team.quiz[team.quizAt++ % team.quiz.length]].id,
+      askedTo: player.id,
+      answered: null,
     };
     if (cardId === "builder") {
-      const workspace = site.worktree ? site.id : "main";
-      const collisions = team.jobs.filter(
-        (j) =>
-          j.cardId === "builder" &&
-          (team.sites[j.siteId].worktree ? j.siteId : "main") === workspace,
+      // Primeiro canteiro livre desta frente; sem nenhum, o agente cai no
+      // checkout compartilhado, que é único para a guilda inteira.
+      job.workspace = this.freeSlots(team, site)[0] || "main";
+      const rivals = team.jobs.filter(
+        (j) => j.cardId === "builder" && j.workspace === job.workspace,
       );
-      if (collisions.length) {
+      const helpers = team.jobs.filter(
+        (j) => j.cardId === "builder" && j.siteId === siteId,
+      ).length;
+      site.contributors++;
+      if (rivals.length) {
         job.conflict = true;
         site.faults = Math.min(3, site.faults + 1);
         team.stats.conflicts++;
-        for (const other of collisions) {
+        for (const other of rivals) {
           other.conflict = true;
           const target = team.sites[other.siteId];
           target.faults = Math.min(3, target.faults + 1);
@@ -294,19 +447,26 @@ export class Arena {
           room,
           team,
           "bad",
-          "Conflito de arquivos!",
-          site.worktree
-            ? "Dois construtores editaram a mesma frente. Worktree separa frentes, não resolve sobreposição dentro delas."
-            : "Agentes trabalharam no mesmo checkout. Cada construção afetada entrega só 75% do trabalho. Isole frentes com Worktree.",
+          "Dois agentes no mesmo checkout!",
+          `Sem canteiro livre, ${player.name} e ${rivals[0].playerName} editam o mesmo diretório: cada um rende metade e as obras ganham falhas. Abra uma Worktree para separar.`,
           siteId,
         );
-      } else
+      } else if (helpers)
+        this.log(
+          room,
+          team,
+          "good",
+          `${site.name}: ${helpers + 1} frentes em paralelo`,
+          `${player.name} entrou num canteiro isolado. A obra fecha em ${Math.round(STORY.buildSeconds / (helpers + 1))} s em vez de ${STORY.buildSeconds} s, e a revisão soma ${helpers * STORY.integrationSeconds} s para convergir as branches.`,
+          siteId,
+        );
+      else
         this.log(
           room,
           team,
           "info",
           `${player.name} mobilizou um Construtor`,
-          `${site.name}: o agente está a caminho. O time pode coordenar outra frente enquanto ele trabalha.`,
+          `${site.name}: sozinho ele leva ${STORY.buildSeconds} s. Uma Worktree abre um canteiro e um segundo Construtor corta esse tempo pela metade.`,
           siteId,
         );
     } else
@@ -319,6 +479,63 @@ export class Arena {
         siteId,
       );
     team.jobs.push(job);
+    this.retime(room, team);
+  }
+  answer(room, key, jobId, option) {
+    this.playable(room);
+    const { player, team } = this.playerTeam(room, key);
+    const job = team.jobs.find((j) => j.id === jobId);
+    check(job, "Essa tarefa já terminou. A pergunta expirou com ela.");
+    check(
+      job.askedTo === player.id,
+      "A pergunta é de quem enviou o agente.",
+      403,
+    );
+    check(!job.answered, "Você já respondeu esta pergunta.");
+    const question = QUESTIONS.find((q) => q.id === job.questionId);
+    check(question, "Pergunta indisponível.");
+    check(
+      Number.isInteger(option) &&
+        option >= 0 &&
+        option < question.options.length,
+      "Escolha uma alternativa.",
+    );
+    const correct = option === question.answer;
+    job.answered = { option, correct };
+    const site = team.sites[job.siteId];
+    if (correct) {
+      // O acerto corta metade do que falta: responder cedo vale mais do que
+      // responder no fim da tarefa. Na obra isso empurra o trabalho em si, e
+      // não um relógio, porque o ritmo é somado entre os Construtores.
+      if (job.cardId === "builder") {
+        site.built = Math.min(100, site.built + (100 - site.built) * STUDY.speedup);
+        this.retime(room, team);
+      } else {
+        const left = Math.max(0, job.endsAt - room.elapsed);
+        job.endsAt = room.elapsed + left * (1 - STUDY.speedup);
+      }
+      team.score += STUDY.bonus;
+      team.stats.learned++;
+      this.log(
+        room,
+        team,
+        "score",
+        `${player.name} acertou · +${STUDY.bonus} pontos`,
+        `${question.why} O agente em ${site.name} acelerou.`,
+        job.siteId,
+      );
+    } else {
+      team.stats.missed++;
+      this.log(
+        room,
+        team,
+        "bad",
+        `${player.name} errou: ${question.topic}`,
+        question.why,
+        job.siteId,
+      );
+    }
+    return { question: quizView(job), siteId: job.siteId, correct };
   }
   deliver(room, key, siteId) {
     this.playable(room);
@@ -352,6 +569,7 @@ export class Arena {
     site.built = 0;
     site.reviewed = false;
     site.faults = 0;
+    site.contributors = 0;
     this.log(
       room,
       team,
@@ -411,8 +629,16 @@ export class Arena {
     for (const team of room.teams) {
       team.energy = Math.min(STORY.maxEnergy, team.energy + dt * STORY.regen);
       for (const job of team.jobs)
-        if (job.endsAt <= end)
+        if (job.cardId === "reviewer" && job.endsAt <= end)
           events.push({ at: job.endsAt, team, job, order: 0 });
+      // A obra não termina por relógio de agente: ela fecha quando o ritmo
+      // somado dos Construtores completa os 100%.
+      for (const site of team.sites) {
+        const rate = this.buildRate(team, site);
+        if (rate <= 0) continue;
+        const at = previous + (100 - site.built) / rate;
+        if (at <= end) events.push({ at, team, site, order: 0 });
+      }
     }
     for (const fraction of [0.45, 0.75]) {
       const at = room.duration * fraction;
@@ -422,7 +648,11 @@ export class Arena {
     // must be repaired by that review, not applied afterwards.
     events.sort((a, b) => a.at - b.at || a.order - b.order);
     for (const event of events) {
-      room.elapsed = event.at;
+      this.soak(room, event.at);
+      if (event.site) {
+        this.finishBuild(room, event.team, event.site);
+        continue;
+      }
       if (!event.job) {
         this.storm(room);
         continue;
@@ -430,34 +660,21 @@ export class Arena {
       const { team, job } = event,
         site = team.sites[job.siteId];
       team.jobs = team.jobs.filter((j) => j.id !== job.id);
-      if (job.cardId === "builder") {
-        site.built = Math.min(100, site.built + (job.conflict ? 75 : 100));
-        site.reviewed = false;
-        this.log(
-          room,
-          team,
-          job.conflict ? "bad" : "good",
-          `${site.name}: construção ${site.built}%`,
-          job.conflict
-            ? "O conflito deixou trabalho incompleto. Isole a frente e envie outro Construtor."
-            : "Obra pronta. Arraste um Revisor até ela para validar antes da entrega.",
-          site.id,
-        );
-      } else {
-        site.reviewed = true;
-        site.faults = 0;
-        team.stats.reviews++;
-        this.log(
-          room,
-          team,
-          "good",
-          `${site.name}: revisão concluída`,
-          "A obra foi validada. Selecione a construção e entregue para ganhar 100 pontos.",
-          site.id,
-        );
-      }
+      site.reviewed = true;
+      site.faults = 0;
+      team.stats.reviews++;
+      this.log(
+        room,
+        team,
+        "good",
+        `${site.name}: revisão concluída`,
+        site.contributors > 1
+          ? `${site.contributors} frentes foram convergidas numa entrega só. Agora vale 100 pontos.`
+          : "A obra foi validada. Selecione a construção e entregue para ganhar 100 pontos.",
+        site.id,
+      );
     }
-    room.elapsed = end;
+    this.soak(room, end);
     if (room.elapsed >= room.duration) this.finish(room);
     const second = Math.floor(room.elapsed),
       changed = second !== room.lastSecond || events.length > 0;
@@ -472,8 +689,10 @@ export class Arena {
   }
   action(room, key, action, body = {}) {
     this.advance(room);
-    if (action === "play") this.play(room, key, body.cardId, body.siteId);
-    else if (action === "deliver") this.deliver(room, key, body.siteId);
+    if (action === "play") return this.play(room, key, body.cardId, body.siteId);
+    else if (action === "deliver") return this.deliver(room, key, body.siteId);
+    else if (action === "answer")
+      return this.answer(room, key, body.jobId, body.option);
     else {
       this.admin(room, key);
       if (action === "start") this.start(room, key);
@@ -513,7 +732,16 @@ export class Arena {
       participants: room.participants,
       duration: room.duration,
       practice: room.practice,
-      teams: room.teams,
+      teams: room.teams.map((team) => ({
+        ...team,
+        quiz: undefined,
+        jobs: team.jobs.map((job) => ({
+          ...job,
+          questionId: undefined,
+          answered: undefined,
+          question: quizView(job),
+        })),
+      })),
       players: room.players.map(({ key, ...p }) => p),
       isAdmin: key === room.admin,
       me: player?.id ?? null,
@@ -525,6 +753,7 @@ export class Arena {
       storms: room.storms,
       cards: CARDS,
       story: STORY,
+      study: { bonus: STUDY.bonus, speedup: STUDY.speedup, revealSeconds: STUDY.revealSeconds },
       winners:
         room.phase === "finished"
           ? room.teams
