@@ -1792,38 +1792,96 @@ function levelPips(x, y, level, color) {
 // As três frentes ficam próximas na diagonal do tabuleiro, então as placas
 // colidem. Elas são posicionadas antes de desenhar e empurradas para cima na
 // ordem de profundidade, como rótulos de mapa.
-function bannerBoxes(points, previewing) {
-  const bw = mobile ? 148 : 218,
-    bh = previewing ? (mobile ? 74 : 98) : mobile ? 56 : 78,
-    top = sceneRect().y + 4;
-  const boxes = points.map((p) => ({
-    id: p.id,
-    bw,
-    bh,
-    bx: p.x - bw / 2,
-    by: Math.max(top, p.top - bh - (mobile ? 10 : 16)),
-  }));
+// A placa fica pequena em repouso e só abre quando interessa: com uma carta na
+// mão, na frente escolhida ou na frente apontada. Três placas grandes cobriam
+// justamente o tabuleiro que elas descrevem.
+function bannerBoxes(points, states, actions) {
+  const top = sceneRect().y + 4;
+  const boxes = points.map((p) => {
+    const { preview, open } = states.get(p.id);
+    const bw = open ? (mobile ? 148 : 218) : mobile ? 124 : 158;
+    const bh = preview
+      ? mobile
+        ? 74
+        : 98
+      : open
+        ? mobile
+          ? 56
+          : 78
+        : mobile
+          ? 38
+          : 44;
+    return {
+      id: p.id,
+      bw,
+      bh,
+      open,
+      bx: p.x - bw / 2,
+      by: Math.max(top, p.top - bh - (mobile ? 8 : 12)),
+    };
+  });
   // Separação horizontal: as frentes são vizinhas na diagonal, então afastar em
   // x mantém cada placa perto da própria construção. O rabicho continua ligado
   // ao ponto real do prédio, mesmo depois do empurrão.
-  for (let pass = 0; pass < 3; pass++)
+  for (let pass = 0; pass < 3; pass++) {
     for (let i = 0; i < boxes.length; i++)
       for (let j = i + 1; j < boxes.length; j++) {
         const a = boxes[i],
           b = boxes[j];
         const gapX =
-          Math.min(a.bx + bw, b.bx + bw) - Math.max(a.bx, b.bx) + 12,
-          gapY = Math.min(a.by + bh, b.by + bh) - Math.max(a.by, b.by) + 6;
+          Math.min(a.bx + a.bw, b.bx + b.bw) - Math.max(a.bx, b.bx) + 12,
+          gapY = Math.min(a.by + a.bh, b.by + b.bh) - Math.max(a.by, b.by) + 6;
         if (gapX <= 0 || gapY <= 0) continue;
         const push = gapX / 2;
         a.bx += a.bx < b.bx ? -push : push;
         b.bx += a.bx < b.bx ? push : -push;
       }
-  for (const b of boxes) b.bx = clamp(b.bx, 10, W - bw - 10);
+    // O botão de entrega fica no chão da própria frente e não se move: são as
+    // placas das outras frentes que saem da frente dele.
+    for (const b of boxes)
+      for (const act of actions) {
+        if (act.id === b.id) continue;
+        const gapX =
+          Math.min(b.bx + b.bw, act.x + act.w) - Math.max(b.bx, act.x) + 10,
+          gapY =
+            Math.min(b.by + b.bh, act.y + act.h) - Math.max(b.by, act.y) + 4;
+        if (gapX <= 0 || gapY <= 0) continue;
+        b.bx += b.bx + b.bw / 2 < act.x + act.w / 2 ? -gapX : gapX;
+      }
+  }
+  for (const b of boxes) b.bx = clamp(b.bx, 10, W - b.bw - 10);
+  // No celular sobra pouca largura para empurrar. Quem ainda estiver por cima
+  // de um botão de entrega sobe acima dele; o rabicho continua no prédio.
+  for (const b of boxes)
+    for (const act of actions) {
+      if (act.id === b.id) continue;
+      if (
+        b.bx < act.x + act.w + 4 &&
+        act.x < b.bx + b.bw + 4 &&
+        b.by < act.y + act.h + 4 &&
+        act.y < b.by + b.bh + 4
+      )
+        b.by = Math.max(top, act.y - b.bh - 6);
+    }
+  // Subir pode ter posto duas placas lado a lado: uma última separação entre
+  // elas, e o limite da tela por último.
+  for (let i = 0; i < boxes.length; i++)
+    for (let j = i + 1; j < boxes.length; j++) {
+      const a = boxes[i],
+        b = boxes[j];
+      const gapX =
+        Math.min(a.bx + a.bw, b.bx + b.bw) - Math.max(a.bx, b.bx) + 12,
+        gapY = Math.min(a.by + a.bh, b.by + b.bh) - Math.max(a.by, b.by) + 6;
+      if (gapX <= 0 || gapY <= 0) continue;
+      const push = gapX / 2;
+      a.bx += a.bx < b.bx ? -push : push;
+      b.bx += a.bx < b.bx ? push : -push;
+    }
+  for (const b of boxes) b.bx = clamp(b.bx, 10, W - b.bw - 10);
   return new Map(boxes.map((b) => [b.id, b]));
 }
 function siteBanner(p, box, target, team, preview, aiming, estimate) {
-  const { bx, by, bw, bh } = box;
+  const { bx, by, bw, bh, open } = box;
   const edge = preview
     ? preview.ok
       ? preview.warn
@@ -1844,9 +1902,13 @@ function siteBanner(p, box, target, team, preview, aiming, estimate) {
   // Rabicho apontando a construção: sem ele a placa parece solta no cenário.
   // A base acompanha o empurrão horizontal, e a ponta continua no prédio.
   const tail = clamp(p.x, bx + 18, bx + bw - 18);
+  // Quanto mais longe a placa foi empurrada, mais fino o rabicho: um triângulo
+  // largo e comprido pesaria mais que a própria placa.
+  const reach = Math.max(0, p.top - 4 - (by + bh));
+  const base = clamp(9 - reach / 26, 3.5, 9);
   ctx.beginPath();
-  ctx.moveTo(tail - 9, by + bh - 1);
-  ctx.lineTo(tail + 9, by + bh - 1);
+  ctx.moveTo(tail - base, by + bh - 1);
+  ctx.lineTo(tail + base, by + bh - 1);
   ctx.lineTo(p.x, Math.max(by + bh + 12, p.top - 4));
   ctx.closePath();
   ctx.fillStyle = "#0d2033";
@@ -1854,24 +1916,48 @@ function siteBanner(p, box, target, team, preview, aiming, estimate) {
   ctx.strokeStyle = edge;
   ctx.lineWidth = 1.5;
   ctx.stroke();
+  const nameY = by + (open ? (mobile ? 15 : 18) : mobile ? 13 : 16);
   text(
     target.name,
-    bx + 12,
-    by + (mobile ? 15 : 18),
-    mobile ? 14 : 17,
+    bx + 11,
+    nameY,
+    open ? (mobile ? 14 : 17) : mobile ? 12 : 15,
     C.cream,
     "left",
     900,
   );
-  levelPips(bx + bw - 51, by + (mobile ? 15 : 18), target.level, C.gold);
-  const barY = by + (mobile ? 26 : 33),
-    barW = bw - 24,
-    barH = mobile ? 7 : 9;
+  levelPips(bx + bw - 50, nameY, target.level, C.gold);
+  // Em repouso as insígnias viram ícones no fim da barra: o estado continua à
+  // vista sem a placa crescer, e a cena 3D já mostra cerca, cúpula e falhas.
+  const marks = [];
+  if (!open) {
+    const crew = team.jobs.filter(
+      (j) => j.cardId === "builder" && j.siteId === target.id,
+    ).length;
+    if (crew > 1) marks.push(["tools", C.gold]);
+    if (target.worktrees) marks.push(["branch", C.green]);
+    if (target.harness) marks.push(["shield", C.blue]);
+    if (target.faults) marks.push(["gem", C.red]);
+  }
+  const step = mobile ? 13 : 15,
+    markW = marks.length * step;
+  const barY = by + (open ? (mobile ? 26 : 33) : mobile ? 25 : 30),
+    barW = bw - 22 - markW,
+    barH = open ? (mobile ? 7 : 9) : mobile ? 6 : 7;
+  marks.forEach(([ico, color], i) =>
+    icon(
+      ico,
+      bx + bw - 11 - markW + i * step + step / 2,
+      barY + barH / 2,
+      mobile ? 11 : 13,
+      color,
+    ),
+  );
   const boost =
     boostFx.siteId === target.id
       ? clamp((time - boostFx.at) / BOOST_MS, 0, 1)
       : 1;
-  rect(bx + 12, barY, barW, barH, "#0a1a2b", 5);
+  rect(bx + 11, barY, barW, barH, "#0a1a2b", 5);
   if (estimate > 0) {
     const fill = (barW * estimate) / 100;
     const base = target.faults ? C.red : target.reviewed ? C.green : C.blue;
@@ -1881,20 +1967,20 @@ function siteBanner(p, box, target, team, preview, aiming, estimate) {
       ctx.save();
       ctx.shadowColor = C.gold;
       ctx.shadowBlur = 20 * (1 - boost);
-      rect(bx + 12, barY, fill, barH, C.gold, 5);
+      rect(bx + 11, barY, fill, barH, C.gold, 5);
       ctx.restore();
       // Duas passagens de luz percorrem o trecho já construído.
       const sweep = (boost * 2) % 1;
-      const sx = bx + 12 + fill * sweep;
+      const sx = bx + 11 + fill * sweep;
       ctx.save();
-      round(bx + 12, barY, fill, barH, 5);
+      round(bx + 11, barY, fill, barH, 5);
       ctx.clip();
       const glare = ctx.createLinearGradient(sx - 26, 0, sx + 26, 0);
       glare.addColorStop(0, "#ffffff00");
       glare.addColorStop(0.5, "#fffdf2cc");
       glare.addColorStop(1, "#ffffff00");
       ctx.fillStyle = glare;
-      ctx.fillRect(bx + 12, barY, fill, barH);
+      ctx.fillRect(bx + 11, barY, fill, barH);
       ctx.restore();
       // Etiqueta subindo e apagando acima da placa, sem cobrir o nome da frente.
       ctx.save();
@@ -1914,8 +2000,9 @@ function siteBanner(p, box, target, team, preview, aiming, estimate) {
         900,
       );
       ctx.restore();
-    } else rect(bx + 12, barY, fill, barH, base, 5);
+    } else rect(bx + 11, barY, fill, barH, base, 5);
   }
+  if (!open) return { bx, by, bw, bh };
   const line3 = by + (mobile ? 45 : 62);
   if (preview)
     wrap(
@@ -2449,13 +2536,63 @@ function battle() {
     }
 
   // ── Frentes no mapa ────────────────────────────────────────────────────────
-  const points = targetPositions(),
-    boxes = bannerBoxes(points, Boolean(card));
+  const points = targetPositions();
+  const states = new Map(
+    points.map((p) => {
+      const target = team.sites[p.id];
+      return [
+        p.id,
+        {
+          target,
+          preview: card ? previewPlay(card, target, team, energy) : null,
+          aiming: aimedSite === p.id,
+          estimate: estimateFor(target),
+          // Abre com uma carta na mão, na frente escolhida, na apontada e sob
+          // o cursor ou o foco do teclado. A placa cresce para fora do ponto
+          // que a chamou, então não há tremulação ao entrar nela.
+          open:
+            Boolean(card) ||
+            selectedSite === p.id ||
+            aimedSite === p.id ||
+            hover === "site-" + p.id ||
+            focus === "site-" + p.id,
+        },
+      ];
+    }),
+  );
+  // As ações de chão são medidas antes das placas para que elas possam desviar.
+  const actions = points.flatMap((p) => {
+    const { target, estimate } = states.get(p.id);
+    const ready = estimate >= 100 && !team.jobs.some((j) => j.siteId === p.id);
+    if (!ready || target.level >= 3 || card) return [];
+    if (selectedSite === p.id) {
+      const w = mobile ? 150 : 196;
+      return [
+        {
+          id: p.id,
+          x: p.x - w / 2,
+          y: p.y + (mobile ? 8 : 12),
+          w,
+          h: mobile ? 34 : 40,
+        },
+      ];
+    }
+    const label = target.reviewed
+      ? mobile
+        ? "PRONTA"
+        : "PRONTA · TOQUE AQUI"
+      : "FALTA REVISAR";
+    ctx.font = "800 12px Nunito";
+    const w = ctx.measureText(label).width + 28;
+    return [
+      { id: p.id, x: p.x - w / 2, y: p.y + (mobile ? 10 : 14), w, h: 28 },
+    ];
+  });
+  const boxes = bannerBoxes(points, states, actions);
+  // Duas passagens: todas as placas primeiro, as ações de chão depois. No laço
+  // único, a placa de uma frente era pintada por cima do botão da anterior.
   points.forEach((p) => {
-    const target = team.sites[p.id],
-      aiming = aimedSite === p.id,
-      preview = card ? previewPlay(card, target, team, energy) : null,
-      estimate = estimateFor(target);
+    const { target, preview, aiming, estimate } = states.get(p.id);
     if (!world) shield(p.x, p.y - 46, mobile ? 50 : 74, team.color, target.icon);
     const band = siteBanner(
       p,
@@ -2466,45 +2603,8 @@ function battle() {
       aiming,
       estimate,
     );
-    const ready = estimate >= 100 && !team.jobs.some((j) => j.siteId === p.id);
-    const chosen = selectedSite === p.id;
-    if (ready && target.level < 3 && !card) {
-      const label = target.reviewed ? "Entregar +100" : "Entregar sem revisão";
-      const bw = mobile ? 150 : 196;
-      if (chosen)
-        button(
-          "deliver",
-          p.x - bw / 2,
-          p.y + (mobile ? 8 : 12),
-          bw,
-          mobile ? 34 : 40,
-          label,
-          () => command("deliver", { siteId: selectedSite }),
-          {
-            kind: target.reviewed ? "green" : "dark",
-            small: true,
-            disabled: !canPlay,
-          },
-        );
-      else {
-        // A largura acompanha o texto: com valor fixo o rótulo transbordava a
-        // pílula e a primeira letra ficava ilegível sobre o terreno.
-        const label = target.reviewed
-          ? mobile
-            ? "PRONTA"
-            : "PRONTA · TOQUE AQUI"
-          : "FALTA REVISAR";
-        ctx.font = "800 12px Nunito";
-        const pw = ctx.measureText(label).width + 28;
-        pill(
-          label,
-          p.x - pw / 2,
-          p.y + (mobile ? 10 : 14),
-          target.reviewed ? C.green : C.gold,
-          pw,
-        );
-      }
-    }
+    // A área da frente é registrada antes do botão de entrega: onde as duas se
+    // tocam, quem ganha o clique é o botão.
     hit(
       "site-" + p.id,
       band.bx - 6,
@@ -2518,6 +2618,46 @@ function battle() {
         selectedSite = p.id;
         if (selection && canPlay) return playCard(selection, p.id);
       },
+    );
+  });
+  points.forEach((p) => {
+    const { target, estimate } = states.get(p.id);
+    const ready = estimate >= 100 && !team.jobs.some((j) => j.siteId === p.id);
+    if (!ready || target.level >= 3 || card) return;
+    if (selectedSite === p.id) {
+      const label = target.reviewed ? "Entregar +100" : "Entregar sem revisão";
+      const bw = mobile ? 150 : 196;
+      button(
+        "deliver",
+        p.x - bw / 2,
+        p.y + (mobile ? 8 : 12),
+        bw,
+        mobile ? 34 : 40,
+        label,
+        () => command("deliver", { siteId: selectedSite }),
+        {
+          kind: target.reviewed ? "green" : "dark",
+          small: true,
+          disabled: !canPlay,
+        },
+      );
+      return;
+    }
+    // A largura acompanha o texto: com valor fixo o rótulo transbordava a
+    // pílula e a primeira letra ficava ilegível sobre o terreno.
+    const label = target.reviewed
+      ? mobile
+        ? "PRONTA"
+        : "PRONTA · TOQUE AQUI"
+      : "FALTA REVISAR";
+    ctx.font = "800 12px Nunito";
+    const pw = ctx.measureText(label).width + 28;
+    pill(
+      label,
+      p.x - pw / 2,
+      p.y + (mobile ? 10 : 14),
+      target.reviewed ? C.green : C.gold,
+      pw,
     );
   });
   agentChips(team, now);
