@@ -25,7 +25,7 @@
   html,body{width:100%;height:100%;margin:0;background:#050506;color:var(--ink);overflow:hidden;font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
   body{display:grid;place-items:center}
   a{color:inherit}
-  .stage{width:1600px;height:900px;position:relative;transform-origin:center center;background:var(--bg);overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.55)}
+  .stage{width:1600px;height:900px;position:absolute;left:50%;top:50%;transform-origin:center center;background:var(--bg);overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.55)}
   .slide{position:absolute;inset:0;display:none;padding:78px 92px 74px;background:
       linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
       linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px),
@@ -151,14 +151,32 @@
   .arch-arrow{text-align:center;color:#706e7b;font-size:30px}
   .arch-sub{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:18px}
   .warning-box{margin-top:34px;border:1px solid #6d4a4a;border-radius:20px;background:rgba(154,52,52,.08);padding:26px 28px;color:#e4cece;font-size:23px;line-height:1.42}
+
+  .lesson{display:grid;grid-template-columns:1.08fr 1fr;gap:44px;align-items:center;margin-top:32px;min-height:0}
+  .prose p{font-size:25px;line-height:1.43;color:#d5d4dc;margin-bottom:22px}
+  .prose p:last-child{margin-bottom:0}.prose strong{color:var(--ink)}
+  .lesson figure{margin:0}.lesson img{display:block;width:100%;height:400px;object-fit:contain;border-radius:18px}
+  figcaption{font-size:18px;line-height:1.4;color:var(--accent-2);margin-top:12px}
+  .lesson code,.prose code{font-size:.88em;color:var(--accent-2)}
+  .tool-table{width:100%;border-collapse:collapse;margin-top:28px;table-layout:fixed}
+  .tool-table th,.tool-table td{text-align:left;vertical-align:top;padding:16px 20px;border-bottom:1px solid var(--line);font-size:21px;line-height:1.35;color:#d5d4dc}
+  .tool-table th{font-size:17px;color:var(--accent-2);text-transform:uppercase;letter-spacing:.06em}
+  .tool-table td:first-child{width:20%;color:var(--ink);font-weight:700}
+  .compare-art{width:100%;height:265px;object-fit:contain;margin-top:22px}
+  .compare-copy{display:grid;grid-template-columns:repeat(4,1fr);gap:28px;margin-top:10px}
+  .compare-copy h3{font-size:25px;color:var(--accent-2)}
+  .compare-copy p{font-size:21px;line-height:1.42;color:#d5d4dc;margin-top:12px}
+  .support{font-size:24px;line-height:1.42;color:#d5d4dc;margin-top:25px;max-width:1320px}
+
   @page{size:1600px 900px;margin:0}
   @media print{
-    html,body{overflow:visible;background:white}.stage{transform:none!important;width:1600px!important;height:auto!important;box-shadow:none}.slide{display:block!important;position:relative!important;width:1600px;height:900px;page-break-after:always}.controls,#progress,#notes{display:none!important}
+    html,body{display:block;place-items:normal;height:auto;overflow:visible;background:white}.stage{position:relative;left:auto;top:auto;transform:none!important;width:1600px!important;height:auto!important;box-shadow:none}.slide{display:block!important;position:relative!important;width:1600px;height:900px;page-break-after:always}.controls,#progress,#notes{display:none!important}
   }
 </style>
 </head>
 <body>
-<div id="progress"></div>
+<div id="progress">
+</div>
 <div class="stage" id="stage">
 
 <section class="slide active" data-title="Orquestrando Agentes de IA">
@@ -166,16 +184,33 @@
     <div class="eyebrow">BuscaGames · case real</div>
     <h1>Orquestrando Agentes de IA</h1>
     <p class="lead">Como Claude Code e Codex trabalharam em paralelo no mesmo produto, com worktrees, contratos versionados e revisão humana.</p>
-    <div class="spacer"></div>
+    <div class="spacer">
+</div>
     <div class="logo-row">
-      <div class="logo-chip">Claude Code<small>harness 01</small></div>
-      <div class="logo-chip">Codex<small>harness 02</small></div>
-      <div class="logo-chip">BuscaGames<small>buscagames.com</small></div>
+      <div class="logo-chip">Claude Code<small>harness 01</small>
+</div>
+      <div class="logo-chip">Codex<small>harness 02</small>
+</div>
+      <div class="logo-chip">BuscaGames<small>buscagames.com</small>
+</div>
     </div>
-    <div class="footer"><span>Jonathas Andrade · Engenheiro de Software Sênior</span><span>Claude Code + Codex no BuscaGames</span></div>
+    <div class="footer"><span>Jonathas Andrade · Engenheiro de Software Sênior</span><span>Claude Code + Codex no BuscaGames</span>
+</div>
   </div>
   <div class="slide-num-big">01</div>
   <aside class="notes-src">Eu usei Claude Code e Codex em frentes diferentes do mesmo repositório do BuscaGames. Vou mostrar como separei contexto e arquivos, quais contratos ficaram versionados e onde precisei limitar a autonomia dos agentes.</aside>
+</section>
+
+<section class="slide" data-title="Você saberia explicar o que é um agente de IA?">
+  <div class="content">
+    <div class="eyebrow">Pergunta para a turma</div>
+    <h2>Você saberia explicar o que é um agente de IA?</h2>
+    <p class="quote">Em uma entrevista, como você responderia a essa pergunta em um minuto?</p>
+    <p class="lead">Pense em uma definição e em um exemplo. Se o entrevistador perguntasse “qual é a diferença entre isso e chamar um modelo por API?”, você conseguiria continuar a explicação?</p>
+    <div class="callout">Antes de avançar, vamos ouvir duas ou três respostas da turma. Guarde a sua: vamos retomá-la depois de separar os conceitos.</div>
+    <div class="footer"><span>BuscaGames · Orquestrando agentes</span><span>02 / 44</span></div>
+  </div>
+  <aside class="notes-src">Dê cerca de 30 segundos para cada pessoa formular a resposta. Ouça duas ou três pessoas sem antecipar a definição. Pergunte o que o sistema pode fazer além de responder e quem escolhe a próxima etapa. A intenção é identificar o ponto de partida da turma, não constranger quem ainda não conhece o termo.</aside>
 </section>
 
 <section class="slide" data-title="Roteiro">
@@ -183,13 +218,191 @@
     <div class="eyebrow">Roteiro</div>
     <h2>Três blocos: conceitos, configuração e o case</h2>
     <div class="grid3">
-      <div class="card accent-card"><div class="kicker">01 · Conceitos</div><h3>O que o harness resolve</h3><p>Agentes, workflows, subagentes e o panorama das ferramentas em 2026.</p></div>
-      <div class="card"><div class="kicker">02 · Configuração</div><h3>Como separar trabalho</h3><p>Worktrees, escopo de ferramentas, AGENTS.md e ADRs versionados.</p></div>
-      <div class="card"><div class="kicker">03 · Case</div><h3>BuscaGames em produção</h3><p>Distribuição das frentes, um erro de autonomia em produção e os guardrails que ficaram.</p></div>
+      <div class="card accent-card">
+<div class="kicker">01 · Conceitos</div>
+<h3>Do modelo ao agente</h3>
+<p>Uma revisão de LLM, agente e harness, seguida da comparação entre construir com APIs e usar ferramentas prontas.</p>
+</div>
+      <div class="card">
+<div class="kicker">02 · Configuração</div>
+<h3>Como separar trabalho</h3>
+<p>Worktrees, escopo de ferramentas, AGENTS.md e ADRs versionados.</p>
+</div>
+      <div class="card">
+<div class="kicker">03 · Case</div>
+<h3>BuscaGames em produção</h3>
+<p>Distribuição das frentes, um erro de autonomia em produção e os guardrails que ficaram.</p>
+</div>
     </div>
-    <div class="footer"><span>Estrutura da sessão</span><span>02 / 33</span></div>
+    <div class="footer"><span>Estrutura da sessão</span><span>03 / 44</span>
+</div>
   </div>
-  <aside class="notes-src">Primeiro eu separo modelo, harness e workflow. Depois mostro a configuração no repositório. No final, uso um incidente do BuscaGames apenas como exemplo de um problema maior: o que acontece quando um agente pode alterar um ambiente compartilhado sem guardrails suficientes.</aside>
+  <aside class="notes-src">Primeiro ouço a definição de agente da turma e reviso LLM, agente e harness sem entrar na matemática dos modelos. Comparo APIs e ferramentas prontas, e só então avanço para orquestração e configuração no repositório. No final, uso um incidente do BuscaGames apenas como exemplo de um problema maior: o que acontece quando um agente pode alterar um ambiente compartilhado sem guardrails suficientes.</aside>
+</section>
+
+<section class="slide" data-title="LLM: o modelo que recebe contexto e gera uma resposta">
+  <div class="content">
+    <div class="eyebrow">Fundamentos · antes da orquestração</div>
+    <h2>LLM: o modelo que recebe contexto e gera uma resposta</h2>
+    <div class="prose" style="margin-top:34px">
+      <p><strong>LLM</strong> significa <em>Large Language Model</em>, ou modelo de linguagem de grande porte. Ele aprende padrões a partir de grandes volumes de dados e usa o contexto recebido para gerar uma saída, que pode ser texto, código ou uma solicitação estruturada de ferramenta.</p>
+      <p>Ao enviar “explique este erro” junto de um trecho de código, você fornece contexto para a resposta. Isso não dá ao modelo acesso automático ao seu repositório: o conteúdo precisa ser enviado ou obtido por uma ferramenta disponível no sistema.</p>
+      <p>Para acompanhar esta apresentação, basta entender essa relação entre contexto e resposta. Uma saída convincente pode estar errada; por isso, a execução de uma tarefa precisa de evidências, como arquivos consultados e resultados de testes.</p>
+    </div>
+    <div class="callout">Vamos estudar como o software usa o modelo para realizar tarefas. Treinamento, vetores e a matemática interna ficam fora do escopo desta conversa.</div>
+    <div class="footer"><span>BuscaGames · Orquestrando agentes</span><span>04 / 44</span></div>
+  </div>
+  <aside class="notes-src">Explique LLM em aproximadamente dois minutos. Use o exemplo de um erro de código e diferencie o trecho enviado de todo o repositório. Não introduza embeddings, vetores ou arquitetura de redes: não são pré-requisitos para os próximos slides. Sobre contexto e uso de ferramentas: https://developers.openai.com/tracks/building-agents#function-calling-vs-builtin-tools</aside>
+</section>
+
+<section class="slide" data-title="Agente: o modelo participa das decisões da tarefa">
+  <div class="content">
+    <div class="eyebrow">Fundamentos · antes da orquestração</div>
+    <h2>Agente: o modelo participa das decisões da tarefa</h2>
+    <div class="prose" style="margin-top:34px">
+      <p>Nesta apresentação, chamamos de <strong>agente baseado em LLM</strong> um sistema que usa o modelo para escolher ações em direção a um objetivo. Ele pode solicitar ferramentas, observar os resultados e decidir o próximo passo dentro dos limites configurados.</p>
+      <p>Considere o pedido “corrija o filtro de ofertas”. O agente pode localizar a implementação, ler o teste, propor uma alteração e pedir sua execução. Se o teste falhar, o resultado volta ao contexto e pode orientar outra tentativa.</p>
+      <p>Uma chamada que apenas responde ao pedido não demonstra esse ciclo. E um programa que sempre executa etapas fixas pode ser um workflow com LLM. A distinção que vamos usar é quem escolhe a sequência durante a tarefa.</p>
+    </div>
+    <div class="callout">Uma resposta possível na entrevista: “É um sistema em que o modelo ajuda a decidir quais ações executar e ajusta os próximos passos a partir dos resultados, até concluir ou precisar de intervenção.”</div>
+    <div class="footer"><span>BuscaGames · Orquestrando agentes</span><span>05 / 44</span></div>
+  </div>
+  <aside class="notes-src">Retome a provocação inicial e peça que a turma compare a definição com as respostas que deu. A palavra agente tem usos diferentes; esta apresentação adota a distinção arquitetural da Anthropic. Autonomia não significa permissão ilimitada ou ausência de revisão humana. Fonte: https://www.anthropic.com/engineering/building-effective-agents</aside>
+</section>
+
+
+
+<section class="slide" data-title="Harness: quem transforma a resposta em ação">
+<div class="content">
+<div class="eyebrow">Conceitos · do pedido à execução</div>
+<h2>Harness: quem transforma a resposta em ação</h2>
+<div class="lesson">
+<div class="prose">
+<p>O <strong>modelo</strong> recebe contexto e propõe uma resposta ou uma chamada de ferramenta. O <strong>harness</strong> é o software que organiza essa execução: prepara o contexto, oferece ferramentas e devolve seus resultados ao modelo.</p>
+<p>Ao pedir “corrija o filtro de ofertas”, o modelo pode solicitar a leitura de um arquivo. O harness executa a leitura, entrega o conteúdo e permite que a próxima decisão use essa informação. Esse ciclo continua até a tarefa terminar ou precisar de intervenção.</p>
+<p>O harness também administra o estado da sessão e aplica as permissões configuradas. Por isso, usar o mesmo modelo em duas ferramentas pode produzir fluxos de trabalho diferentes.</p>
+</div>
+<figure>
+<img src="assets/presentation/harness.png" alt="Contexto → modelo → ferramenta → resultado → nova decisão. Permissões e estado sustentam o ciclo.">
+<figcaption>Contexto → modelo → ferramenta → resultado → nova decisão. Permissões e estado sustentam o ciclo.</figcaption>
+</figure>
+</div>
+<div class="footer"><span>BuscaGames · Orquestrando agentes</span><span>06 / 44</span>
+</div>
+</div>
+<aside class="notes-src">Fonte: https://developers.openai.com/cookbook/examples/agents_sdk/migrate-from-claude-agent-sdk/readme</aside>
+</section>
+
+<section class="slide" data-title="Pela API, sua aplicação organiza a execução">
+  <div class="content">
+    <div class="eyebrow">Fundamentos · antes da orquestração</div>
+    <h2>Pela API, sua aplicação organiza a execução</h2>
+    <div class="prose" style="margin-top:34px">
+      <p>As APIs da OpenAI e da Anthropic permitem enviar contexto ao modelo e descrever ferramentas. Imagine um agente dentro do BuscaGames: você oferece uma função para consultar ofertas, com parâmetros definidos pela aplicação.</p>
+      <p>Se o modelo solicitar essa função, seu código valida os argumentos e as permissões, executa a consulta e devolve o resultado. O modelo pode então responder ao usuário ou solicitar outra ação. Esse caminho precisa ter condições de conclusão e interrupção.</p>
+      <p>A equipe decide quais dados ficam disponíveis, como guardar o estado e como avaliar o resultado. Ela pode implementar esse ciclo ou aproveitar um SDK; algumas ferramentas hospedadas pelo provedor já executam do lado dele.</p>
+    </div>
+    <div class="callout">Uma solicitação de ferramenta é um pedido de ação. Para funções da sua aplicação, é o seu software que autoriza e executa esse pedido.</div>
+    <div class="footer"><span>BuscaGames · Orquestrando agentes</span><span>07 / 44</span></div>
+  </div>
+  <aside class="notes-src">Exemplo didático de um agente de consulta de ofertas, não uma afirmação de que essa funcionalidade já existe no BuscaGames. Separar ferramentas executadas pelo cliente das hospedadas pelo provedor. Fontes: https://developers.openai.com/tracks/building-agents#function-calling-vs-builtin-tools ; https://platform.claude.com/docs/en/agents-and-tools/tool-use/how-tool-use-works</aside>
+</section>
+
+<section class="slide" data-title="Construir com APIs ou usar um harness pronto?">
+  <div class="content">
+    <div class="eyebrow">Fundamentos · antes da orquestração</div>
+    <h2>Construir com APIs ou usar um harness pronto?</h2>
+    <div class="grid2">
+      <div class="prose">
+        <h3>Construir o agente da aplicação</h3>
+        <p style="margin-top:22px">Você integra o modelo ao seu produto e define as ferramentas do domínio, como consultar ofertas ou registrar um alerta. Também escolhe como o ciclo de execução vai funcionar e como será testado.</p>
+        <p>Isso permite adaptar o comportamento ao produto, mas exige manter a integração, as permissões, o estado e os critérios de qualidade. SDKs podem reduzir parte desse trabalho.</p>
+      </div>
+      <div class="prose">
+        <h3>Usar Codex ou Claude Code</h3>
+        <p style="margin-top:22px">Você entrega uma tarefa a um ambiente que já oferece o ciclo do agente e ferramentas de programação. Configura o projeto, o acesso aos arquivos e as aprovações, e acompanha a execução.</p>
+        <p>A ferramenta fornece parte da infraestrutura. Você continua responsável pelo escopo e pela revisão do resultado. No nosso case, usamos esses agentes para desenvolver o BuscaGames.</p>
+      </div>
+    </div>
+    <p class="support">Os dois caminhos usam modelos e uma camada de execução. Também é possível incorporar um harness por SDK. A escolha depende de quanto dessa camada você precisa construir, adaptar ou reutilizar.</p>
+    <div class="footer"><span>BuscaGames · Orquestrando agentes</span><span>08 / 44</span></div>
+  </div>
+  <aside class="notes-src">A comparação é sobre responsabilidade de implementação, não sobre ter ou não ter API. Harnesses também usam APIs, e SDKs podem expor sua execução programaticamente. Exemplo hipotético de agente dentro do produto versus uso real de ferramentas para desenvolver o produto. Fontes: https://developers.openai.com/tracks/building-agents ; https://code.claude.com/docs/en/overview ; https://platform.claude.com/docs/en/agent-sdk/overview</aside>
+</section>
+
+<section class="slide" data-title="Ferramentas de harness: o que muda no trabalho">
+<div class="content">
+<div class="eyebrow">Ferramentas · comparação de fluxo</div>
+<h2>Ferramentas de harness: o que muda no trabalho</h2>
+<table class="tool-table">
+<colgroup><col style="width:16%"><col style="width:29%"><col style="width:55%"></colgroup>
+<thead>
+<tr>
+<th>Ferramenta</th>
+<th>Onde você trabalha</th>
+<th>Diferença prática</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Claude Code</td>
+<td>Agente no terminal, com integrações de editor.</td>
+<td>Subagentes com instruções e ferramentas próprias permitem delegar uma revisão sem ocupar toda a conversa principal.</td>
+</tr>
+<tr>
+<td>Codex</td>
+<td>Agente de programação da OpenAI.</td>
+<td>O harness reúne contexto, ferramentas e controles de execução. AGENTS.md e skills orientam o trabalho no projeto.</td>
+</tr>
+<tr>
+<td>Cursor</td>
+<td>IDE com agente integrado ao editor.</td>
+<td>Você acompanha arquivos, alterações e comandos no mesmo ambiente em que programa e revisa o código.</td>
+</tr>
+<tr>
+<td>Kimi Code</td>
+<td>CLI e extensão para VS Code.</td>
+<td>Leva leitura, edição e execução de comandos ao terminal ou ao editor existente. Kimi também fornece os modelos.</td>
+</tr>
+<tr>
+<td>Kiro</td>
+<td>Ambiente com fluxo por especificações.</td>
+<td>Organiza requisitos, desenho e tarefas antes da implementação; steering files registram orientações do projeto.</td>
+</tr>
+<tr>
+<td>OpenCode</td>
+<td>Agente com escolha de provedores.</td>
+<td>Permite configurar diferentes modelos no mesmo fluxo de trabalho; essa escolha é separada das regras do projeto.</td>
+</tr>
+</tbody>
+</table>
+<div class="footer"><span>BuscaGames · Orquestrando agentes</span><span>09 / 44</span>
+</div>
+</div>
+<aside class="notes-src">Comparação de foco, não ranking nem lista exclusiva de recursos. Fontes consultadas em 10/09/2026: https://code.claude.com/docs/en/sub-agents ; https://learn.chatgpt.com/docs/agent-configuration/agents-md ; https://cursor.com/docs/agent/overview ; https://www.kimi.com/code/docs/en/ ; https://kiro.dev/docs/specs/ ; https://opencode.ai/docs/</aside>
+</section>
+
+<section class="slide" data-title="Cursor e Kimi: editor, agente e modelo">
+<div class="content">
+<div class="eyebrow">Conceitos · do pedido à execução</div>
+<h2>Cursor e Kimi: editor, agente e modelo</h2>
+<div class="grid2">
+<div class="prose">
+<h3>Cursor reúne editor e agente</h3>
+<p style="margin-top:22px">Você abre o projeto na IDE e pede uma alteração ao agente. Ele pode consultar arquivos, editar código e executar comandos; você acompanha o resultado no fluxo do editor.</p>
+<p>A integração ajuda quando a tarefa alterna entre exploração manual, pedidos ao agente e revisão de alterações.</p>
+</div>
+<div class="prose">
+<h3>Kimi Code se integra ao editor</h3>
+<p style="margin-top:22px">Kimi Code oferece um cliente de terminal e uma extensão para VS Code. Assim, você pode trabalhar com o agente dentro de um editor que já usa.</p>
+<p>“Kimi” também identifica uma família de modelos. Usar um modelo Kimi em outro harness mantém as ferramentas e permissões desse outro ambiente.</p>
+</div>
+</div>
+<p class="support">Na comparação, Cursor é uma IDE com agente; Kimi Code é a ferramenta de programação disponível por CLI e integração com IDE. Escolher o modelo e escolher o harness são decisões distintas.</p>
+<div class="footer"><span>BuscaGames · Orquestrando agentes</span><span>10 / 44</span>
+</div>
+</div>
+<aside class="notes-src">Fontes: https://cursor.com/docs/agent/overview ; https://www.kimi.com/code/docs/en/</aside>
 </section>
 
 <section class="slide" data-title="Por que uma sessão só não escala">
@@ -207,42 +420,10 @@
         <div class="bullet">A pergunta prática passa a ser: como separar contexto, arquivos e responsabilidade?</div>
       </div>
     </div>
-    <div class="footer"><span>Contexto e isolamento</span><span>03 / 33</span></div>
+    <div class="footer"><span>Contexto e isolamento</span><span>11 / 44</span>
+</div>
   </div>
   <aside class="notes-src">Uma sessão longa acumula leitura de arquivo, saída de teste e erros. Quando o harness compacta o histórico, pode perder parte do contexto que justificou decisões anteriores. Se duas frentes ainda editam o mesmo checkout, aparece um segundo problema: conflito de arquivos.</aside>
-</section>
-
-<section class="slide" data-title="Harness: o que roda o agente">
-  <div class="content">
-    <div class="eyebrow">Definição</div>
-    <h2>Harness é a camada que faz o modelo trabalhar</h2>
-    <div class="flow">
-      <div class="node">Contexto</div><div class="arrow">→</div>
-      <div class="node accent-node">Modelo</div><div class="arrow">→</div>
-      <div class="node">Ferramentas</div><div class="arrow">→</div>
-      <div class="node">Sandbox + aprovação</div><div class="arrow">→</div>
-      <div class="node">Estado</div>
-    </div>
-    <div class="callout">Em agosto de 2026, a OpenAI apresentou o Codex como plataforma e tratou o harness como uma camada reutilizável do sistema.</div>
-    <div class="footer"><span>Harnesses</span><span>04 / 33</span></div>
-  </div>
-  <aside class="notes-src">Eu separo o modelo da camada que executa a tarefa. O harness monta contexto, chama ferramentas, aplica sandbox e aprovação e mantém estado entre turnos. Em agosto de 2026, a OpenAI apresentou o Codex como plataforma e deu mais destaque a essa camada reutilizável.</aside>
-</section>
-
-<section class="slide" data-title="O panorama de harnesses em 2026">
-  <div class="content">
-    <div class="eyebrow">Panorama · 2026</div>
-    <h2>Cinco ferramentas, cinco pontos de partida</h2>
-    <div class="grid5">
-      <div class="card"><h3>Claude Code</h3><p>Terminal e desktop. Modelos Anthropic, subagentes e worktrees nativos.</p></div>
-      <div class="card accent-card"><h3>Codex</h3><p>Modelos OpenAI e um harness publicado como plataforma aberta.</p></div>
-      <div class="card"><h3>Cursor</h3><p>O agente vive dentro do editor e herda o fluxo de quem já adotou a IDE.</p></div>
-      <div class="card"><h3>Kiro</h3><p>AWS, abordagem spec-first e steering files em <code>.kiro/steering</code>.</p></div>
-      <div class="card"><h3>OpenCode</h3><p>MIT, model-agnostic, self-hosted e compatível com <code>AGENTS.md</code>.</p></div>
-    </div>
-    <div class="footer"><span>Panorama de ferramentas</span><span>05 / 33</span></div>
-  </div>
-  <aside class="notes-src">Claude Code parte do terminal e dos modelos Anthropic. Codex usa modelos OpenAI. Cursor coloca o agente dentro da IDE. Kiro organiza o trabalho a partir de especificações. OpenCode é model-agnostic e pode ser self-hosted. O quadro compara o ponto de partida de cada ferramenta.</aside>
 </section>
 
 <section class="slide" data-title="Workflow e agente: os cinco padrões">
@@ -250,14 +431,35 @@
     <div class="eyebrow">Anthropic · Building Effective Agents</div>
     <h2>Workflow define o caminho. Agente decide a sequência.</h2>
     <div class="grid5" style="margin-top:42px">
-      <div class="card"><div class="kicker">01</div><h3>Prompt chaining</h3><p>Etapas em sequência.</p></div>
-      <div class="card"><div class="kicker">02</div><h3>Routing</h3><p>Classifica e encaminha.</p></div>
-      <div class="card"><div class="kicker">03</div><h3>Parallelization</h3><p>Frentes independentes.</p></div>
-      <div class="card accent-card"><div class="kicker">04</div><h3>Orchestrator-workers</h3><p>Um agente divide e consolida.</p></div>
-      <div class="card"><div class="kicker">05</div><h3>Evaluator-optimizer</h3><p>Produção e crítica em loop.</p></div>
+      <div class="card">
+<div class="kicker">01</div>
+<h3>Prompt chaining</h3>
+<p>Etapas em sequência.</p>
+</div>
+      <div class="card">
+<div class="kicker">02</div>
+<h3>Routing</h3>
+<p>Classifica e encaminha.</p>
+</div>
+      <div class="card">
+<div class="kicker">03</div>
+<h3>Parallelization</h3>
+<p>Frentes independentes.</p>
+</div>
+      <div class="card accent-card">
+<div class="kicker">04</div>
+<h3>Orchestrator-workers</h3>
+<p>Um agente divide e consolida.</p>
+</div>
+      <div class="card">
+<div class="kicker">05</div>
+<h3>Evaluator-optimizer</h3>
+<p>Produção e crítica em loop.</p>
+</div>
     </div>
     <div class="callout">Comece com a composição mais simples que atende a tarefa. Aumente a autonomia quando houver ganho claro.</div>
-    <div class="footer"><span>Anthropic · Building Effective Agents</span><span>06 / 33</span></div>
+    <div class="footer"><span>Anthropic · Building Effective Agents</span><span>12 / 44</span>
+</div>
   </div>
   <aside class="notes-src">Na taxonomia da Anthropic, workflows têm o caminho definido em código. Em um agente, o modelo escolhe a sequência das ações. Prompt chaining, routing, parallelization e orchestrator-workers são composições explícitas. Evaluator-optimizer adiciona um loop de produção e crítica. Eu começo pelo arranjo mais simples que atende a tarefa.</aside>
 </section>
@@ -267,29 +469,100 @@
     <div class="eyebrow">Sistema multiagente da Anthropic</div>
     <h2>Paralelismo pode melhorar o resultado e aumenta o uso de tokens</h2>
     <div class="grid3" style="margin-top:50px">
-      <div class="card accent-card"><div class="metric">90,2%</div><div class="metric-label">acima do agente único na avaliação interna citada pela Anthropic.</div></div>
-      <div class="card"><div class="metric">~15×</div><div class="metric-label">mais tokens para o sistema multiagente.</div></div>
-      <div class="card"><div class="metric">80%</div><div class="metric-label">da variação de desempenho em BrowseComp explicada pelo uso de tokens.</div></div>
+      <div class="card accent-card">
+<div class="metric">90,2%</div>
+<div class="metric-label">acima do agente único na avaliação interna citada pela Anthropic.</div>
+</div>
+      <div class="card">
+<div class="metric">~15×</div>
+<div class="metric-label">mais tokens para o sistema multiagente.</div>
+</div>
+      <div class="card">
+<div class="metric">80%</div>
+<div class="metric-label">da variação de desempenho em BrowseComp explicada pelo uso de tokens.</div>
+</div>
     </div>
     <p class="lead" style="font-size:23px;max-width:1180px">O líder planeja, registra o plano e abre subagentes com janelas próprias. Cada um devolve achados condensados.</p>
-    <div class="footer"><span>Anthropic · multi-agent research system</span><span>07 / 33</span></div>
+    <div class="footer"><span>Anthropic · multi-agent research system</span><span>13 / 44</span>
+</div>
   </div>
   <aside class="notes-src">No sistema de pesquisa multiagente da Anthropic, um agente líder planeja e abre subagentes em paralelo. Cada subagente tem a própria janela de contexto e devolve um resumo. Na avaliação publicada, o sistema ficou 90,2% acima do agente único e usou cerca de 15 vezes mais tokens. A Anthropic também reporta que o uso de tokens explica 80% da variação de desempenho no BrowseComp.</aside>
 </section>
 
-<section class="slide" data-title="A fronteira de isolamento">
-  <div class="content">
-    <div class="eyebrow">Decisão de arquitetura</div>
-    <h2>Quanto contexto cada agente precisa receber?</h2>
-    <div class="matrix">
-      <div class="cell head"></div><div class="cell head">Orchestrator-worker</div><div class="cell head">Swarm</div>
-      <div class="cell head">Estado</div><div class="cell">Separado. O orquestrador concentra decisão.</div><div class="cell">Mais compartilhado e mais dinâmico.</div>
-      <div class="cell head">Depuração</div><div class="cell">Mais simples de reconstruir.</div><div class="cell">Mais difícil de rastrear.</div>
-      <div class="cell head">BuscaGames</div><div class="cell">Documentos versionados como canal entre frentes.</div><div class="cell">Não foi necessário.</div>
-    </div>
-    <div class="footer"><span>Isolamento de contexto</span><span>08 / 33</span></div>
-  </div>
-  <aside class="notes-src">A decisão de isolamento define quanto contexto cada agente recebe. No orchestrator-worker, os subagentes podem trabalhar sem conversar entre si e o orquestrador consolida as decisões. Um swarm compartilha mais estado e aumenta a dificuldade de depuração. No BuscaGames eu preferi documentos versionados como canal entre sessões.</aside>
+<section class="slide" data-title="Skill, subagente, supervisor e swarm">
+<div class="content">
+<div class="eyebrow">Conceitos · do pedido à execução</div>
+<h2>Skill, subagente, supervisor e swarm</h2>
+<img class="compare-art" src="assets/presentation/coordination.png" alt="Da esquerda para a direita: procedimento usado por um agente; delegação a um especialista; supervisor coordenando três agentes; agentes pares passando trabalho entre si.">
+<p class="small" style="text-align:center;margin-top:8px">Na ilustração, da esquerda para a direita:</p>
+<div class="compare-copy">
+<div>
+<h3>Skill</h3>
+<p>Ensina como executar uma tarefa. Um agente consulta o procedimento e aplica as instruções.</p>
+</div>
+<div>
+<h3>Subagente</h3>
+<p>Recebe uma tarefa delegada, trabalha em seu contexto e devolve o resultado ao agente que o chamou.</p>
+</div>
+<div>
+<h3>Supervisor</h3>
+<p>Distribui tarefas, acompanha as respostas e decide como consolidar o trabalho dos agentes.</p>
+</div>
+<div>
+<h3>Agent swarm</h3>
+<p>Distribui a coordenação entre agentes que podem encaminhar trabalho entre si, conforme as regras do sistema.</p>
+</div>
+</div>
+<p class="support">Esses conceitos podem coexistir: um supervisor pode chamar subagentes que usam skills. Swarm descreve outra forma de organizar a coordenação.</p>
+<div class="footer"><span>BuscaGames · Orquestrando agentes</span><span>14 / 44</span>
+</div>
+</div>
+<aside class="notes-src">Swarm é usado aqui no sentido de coordenação por handoffs entre pares; a terminologia varia por framework. Não implica memória total compartilhada nem execução simultânea. Fontes: https://docs.langchain.com/oss/python/langchain/multi-agent ; https://github.com/langchain-ai/langgraph-swarm-py ; https://code.claude.com/docs/en/skills</aside>
+</section>
+
+<section class="slide" data-title="A mesma revisão, com responsabilidades diferentes">
+<div class="content">
+<div class="eyebrow">Conceitos · do pedido à execução</div>
+<h2>A mesma revisão, com responsabilidades diferentes</h2>
+<div class="grid2">
+<div class="prose">
+<h3>Uma skill orienta a revisão</h3>
+<p style="margin-top:22px">Uma skill de revisão de API pode ensinar a conferir parâmetros, respostas e compatibilidade. O agente lê esse procedimento e o aplica ao endpoint de ofertas.</p>
+<p>A skill reúne instruções e, quando necessário, scripts e referências. Por si só, ela não cria outro agente: a forma de execução depende do harness e da configuração.</p>
+</div>
+<div class="prose">
+<h3>Um subagente recebe a revisão</h3>
+<p style="margin-top:22px">O agente principal delega: “revise este endpoint e devolva problemas com evidências”. O subagente recebe o contexto necessário, consulta os arquivos e entrega seus achados.</p>
+<p>O principal usa o retorno para continuar a tarefa. Separar a conversa do revisor reduz o contexto acumulado, mas exige um pedido claro e critérios de entrega.</p>
+</div>
+</div>
+<div class="footer"><span>BuscaGames · Orquestrando agentes</span><span>15 / 44</span>
+</div>
+</div>
+<aside class="notes-src">Exemplo didático. Fonte: https://code.claude.com/docs/en/sub-agents ; https://code.claude.com/docs/en/skills</aside>
+</section>
+
+<section class="slide" data-title="Quem decide a próxima etapa?">
+<div class="content">
+<div class="eyebrow">Conceitos · do pedido à execução</div>
+<h2>Quem decide a próxima etapa?</h2>
+<div class="grid2">
+<div class="prose">
+<h3>Com supervisor, a decisão volta ao centro</h3>
+<p style="margin-top:22px">O supervisor pede a revisão da API e a verificação da interface. Recebe os dois resultados, identifica uma divergência no contrato e decide qual tarefa precisa ser refeita.</p>
+<p>Há um responsável pela consolidação. Esse papel pode ser exercido por um agente; no BuscaGames, parte dessa coordenação ficou comigo.</p>
+</div>
+<div class="prose">
+<h3>No swarm, a passagem pode ser entre pares</h3>
+<p style="margin-top:22px">O agente de API identifica uma mudança no formato da resposta e encaminha a próxima etapa ao agente de interface. O sistema define quando essa passagem é permitida e qual contexto acompanha o pedido.</p>
+<p>Isso exige regras de encaminhamento e de término. O nome “swarm” não garante paralelismo nem que todos vejam a mesma memória.</p>
+</div>
+</div>
+<p class="support">No BuscaGames, documentos versionados e revisão humana foram suficientes para coordenar as frentes. Não precisávamos de um swarm.</p>
+<div class="footer"><span>BuscaGames · Orquestrando agentes</span><span>16 / 44</span>
+</div>
+</div>
+<aside class="notes-src">Fonte conceitual: https://github.com/langchain-ai/langgraph-swarm-py ; case conforme relato original da apresentação.</aside>
 </section>
 
 <section class="slide" data-title="Definindo um subagente">
@@ -298,7 +571,8 @@
     <h2 style="font-size:46px">Um arquivo define quando delegar e qual é o escopo do subagente</h2>
     <div class="grid2 code-layout" style="margin-top:28px;grid-template-columns:minmax(0,1.08fr) minmax(0,.92fr)">
       <div class="code">
-        <div class="code-head"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span>.claude/agents/reviewer.md</span></div>
+        <div class="code-head"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span>.claude/agents/reviewer.md</span>
+</div>
 <pre><span class="kw">---</span>
 <span class="kw">name:</span> reviewer
 <span class="kw">description:</span> <span class="str">Review changes when a task touches
@@ -313,10 +587,12 @@ and contract compatibility.</pre>
         <div class="point"><span class="mono">name</span> e <span class="mono">description</span> são obrigatórios.</div>
         <div class="point">A descrição informa em que situação a delegação faz sentido.</div>
         <div class="point">O corpo do markdown vira o system prompt do subagente.</div>
-        <div class="point">Projeto: <span class="mono">.claude/agents/</span><br>Pessoal: <span class="mono">~/.claude/agents/</span></div>
+        <div class="point">Projeto: <span class="mono">.claude/agents/</span><br>Pessoal: <span class="mono">~/.claude/agents/</span>
+</div>
       </div>
     </div>
-    <div class="footer"><span>Claude Code · subagentes</span><span>09 / 33</span></div>
+    <div class="footer"><span>Claude Code · subagentes</span><span>17 / 44</span>
+</div>
   </div>
   <aside class="notes-src">No Claude Code, um subagente pode ser descrito em markdown com frontmatter YAML. Name e description são obrigatórios. A description ajuda o harness a decidir quando delegar, então eu escrevo esse campo como uma condição concreta de uso. O corpo do arquivo vira o system prompt do subagente.</aside>
 </section>
@@ -327,10 +603,12 @@ and contract compatibility.</pre>
     <h2 style="font-size:46px">O subagente deve receber apenas as ferramentas de que precisa</h2>
     <div class="grid2 code-layout" style="margin-top:28px;grid-template-columns:minmax(0,1.02fr) minmax(0,.98fr)">
       <div class="code">
-        <div class="code-head"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span>frontmatter</span></div>
+        <div class="code-head"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span>frontmatter</span>
+</div>
 <pre><span class="kw">---</span>
 <span class="kw">name:</span> api-reviewer
-<span class="kw">tools:</span> Read, Grep, Bash
+<span class="kw">description:</span> Review API contract changes.
+<span class="kw">tools:</span> Read, Grep, Glob
 <span class="kw">disallowedTools:</span> Write, Edit
 <span class="kw">model:</span> inherit
 <span class="kw">isolation:</span> worktree
@@ -343,9 +621,10 @@ and contract compatibility.</pre>
         <div class="point">Ferramentas desnecessárias ficam fora do escopo.</div>
       </div>
     </div>
-    <div class="footer"><span>Claude Code · permissões</span><span>10 / 33</span></div>
+    <div class="footer"><span>Claude Code · permissões</span><span>18 / 44</span>
+</div>
   </div>
-  <aside class="notes-src">O frontmatter também limita ferramentas, escolhe o modelo e pode pedir isolamento por worktree. Eu trato isso como parte do desenho do agente. Um revisor não precisa de Write ou Edit. Uma tarefa simples pode usar um modelo mais barato. Quanto menor o conjunto de ferramentas, menor a quantidade de ações que o agente pode executar por engano.</aside>
+  <aside class="notes-src">O frontmatter também limita ferramentas, escolhe o modelo e pode pedir isolamento por worktree. Eu trato isso como parte do desenho do agente. O exemplo usa Read, Grep e Glob. Bloquear Write e Edit não impediria escrita via Bash se Bash estivesse permitido. Uma tarefa simples pode usar um modelo mais barato. Quanto menor o conjunto de ferramentas, menor a quantidade de ações que o agente pode executar por engano.</aside>
 </section>
 
 <section class="slide" data-title="Você provavelmente não precisa de dois harnesses">
@@ -353,14 +632,16 @@ and contract compatibility.</pre>
     <div class="eyebrow">Antes de complicar</div>
     <h2>Na maior parte das tarefas, um harness bem configurado é suficiente</h2>
     <div class="two-col">
-      <div class="bigword">1<span class="purple">×</span></div>
+      <div class="bigword">1<span class="purple">×</span>
+</div>
       <div class="bullets" style="margin-top:0">
         <div class="bullet">Subagentes já separam contexto e responsabilidade dentro da mesma ferramenta.</div>
         <div class="bullet">Sessões em segundo plano e agent teams cobrem boa parte do paralelismo cotidiano.</div>
         <div class="bullet">Adicionar outro harness duplica coordenação, contexto e custo.</div>
       </div>
     </div>
-    <div class="footer"><span>Estratégia de orquestração</span><span>11 / 33</span></div>
+    <div class="footer"><span>Estratégia de orquestração</span><span>19 / 44</span>
+</div>
   </div>
   <aside class="notes-src">Eu começo com um único harness, que já consegue abrir subagentes e sessões paralelas. Adiciono um segundo quando existe uma necessidade concreta, porque isso duplica parte do contexto e aumenta a coordenação manual.</aside>
 </section>
@@ -376,32 +657,31 @@ and contract compatibility.</pre>
       <div class="check">Existe limite de uso, licença ou disponibilidade de um dos lados.</div>
     </div>
     <div class="warning-box">Se nenhuma dessas condições aparece, um único harness tende a ser mais simples de operar.</div>
-    <div class="footer"><span>Estratégia de orquestração</span><span>12 / 33</span></div>
+    <div class="footer"><span>Estratégia de orquestração</span><span>20 / 44</span>
+</div>
   </div>
   <aside class="notes-src">Os casos em que eu considero dois harnesses são bem específicos: modelos de fornecedores diferentes, frentes longas e independentes, comparação entre abordagens ou alguma limitação operacional de uma das ferramentas. Sem isso, eu fico com um só.</aside>
 </section>
 
-<section class="slide" data-title="O que é um git worktree">
-  <div class="content">
-    <div class="eyebrow">Git worktree</div>
-    <h2>Worktree é outro diretório de trabalho do mesmo repositório</h2>
-    <div class="diagram-shell">
-      <div class="arch-row">
-        <div class="arch-box"><strong>repo principal</strong><small>branch: main</small></div>
-        <div class="arch-arrow">↔</div>
-        <div class="arch-box"><strong>.git</strong><small>histórico, objetos, remote</small></div>
-        <div class="arch-arrow">↔</div>
-        <div class="arch-box"><strong>worktree</strong><small>branch: feature/api</small></div>
-      </div>
-      <div class="arch-sub">
-        <div class="arch-box"><strong>worktree 02</strong><small>branch: feature/ui</small></div>
-        <div class="arch-box"><strong>worktree 03</strong><small>branch: feature/ingestion</small></div>
-      </div>
-    </div>
-    <div class="callout">Histórico, objetos e remote são compartilhados. Cada diretório trabalha em uma branch própria.</div>
-    <div class="footer"><span>Git worktree</span><span>13 / 33</span></div>
-  </div>
-  <aside class="notes-src">Git worktree cria outro diretório de trabalho ligado ao mesmo repositório. Ele compartilha histórico, objetos e remote com o checkout principal. Cada worktree usa uma branch própria, o que permite manter duas frentes isoladas sem criar clones completos.</aside>
+<section class="slide" data-title="Worktree: duas áreas de trabalho, um repositório">
+<div class="content">
+<div class="eyebrow">Conceitos · do pedido à execução</div>
+<h2>Worktree: duas áreas de trabalho, um repositório</h2>
+<div class="lesson">
+<div class="prose">
+<p>Uma <strong>branch</strong> aponta para uma linha de desenvolvimento. O <strong>worktree</strong> materializa um checkout em outro diretório, permitindo manter a API aberta em uma branch e a interface em outra ao mesmo tempo.</p>
+<p>Cada diretório tem seus arquivos, seu <code>HEAD</code> e seu índice — a área de preparação do próximo commit. O banco de objetos e as referências do Git são compartilhados; não é necessário duplicar todo o histórico em outro clone.</p>
+<p>Quando o agente de API edita um arquivo, essa edição não aparece automaticamente no diretório da interface. Cada sessão continua trabalhando sobre seu próprio checkout.</p>
+</div>
+<figure>
+<img src="assets/presentation/worktrees.png" alt="Um histórico comum; dois diretórios com arquivos, HEAD e área de preparação próprios.">
+<figcaption>Um histórico comum; dois diretórios com arquivos, HEAD e área de preparação próprios.</figcaption>
+</figure>
+</div>
+<div class="footer"><span>BuscaGames · Orquestrando agentes</span><span>21 / 44</span>
+</div>
+</div>
+<aside class="notes-src">Fonte: https://git-scm.com/docs/git-worktree</aside>
 </section>
 
 <section class="slide" data-title="Worktree na prática">
@@ -409,7 +689,8 @@ and contract compatibility.</pre>
     <div class="eyebrow">Git worktree</div>
     <h2>Dois diretórios, duas branches, um histórico</h2>
     <div class="code" style="margin-top:44px">
-      <div class="code-head"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span>terminal</span></div>
+      <div class="code-head"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span>terminal</span>
+</div>
 <pre><span class="cmd">git worktree add</span> ../buscagames-api -b feature/api
 <span class="cmd">git worktree add</span> ../buscagames-ui  -b feature/ui
 
@@ -420,9 +701,26 @@ and contract compatibility.</pre>
 
 <span class="cmd">git worktree remove</span> ../buscagames-ui</pre>
     </div>
-    <div class="footer"><span>Git worktree</span><span>14 / 33</span></div>
+    <div class="footer"><span>Git worktree</span><span>22 / 44</span>
+</div>
   </div>
   <aside class="notes-src">Na prática, eu crio uma worktree por frente e abro cada sessão no seu diretório. Git worktree list mostra o mapa dos checkouts. Remover a worktree não cria outro histórico nem outro remote, porque tudo continua ligado ao mesmo repositório.</aside>
+</section>
+
+<section class="slide" data-title="Como as mudanças voltam a se encontrar">
+<div class="content">
+<div class="eyebrow">Conceitos · do pedido à execução</div>
+<h2>Como as mudanças voltam a se encontrar</h2>
+<div class="prose" style="margin-top:32px">
+<p>Ao terminar a API, o agente registra as alterações em um commit da branch <code>feature/api</code>. A interface continua no estado da sua própria branch até alguém integrar a mudança.</p>
+<p>Depois da revisão, fazemos merge para trazer os commits ao destino escolhido e executamos os testes da combinação. Se as duas frentes alteraram o mesmo trecho, ainda pode haver conflito nessa integração.</p>
+<p>O worktree separa arquivos, mas os processos continuam usando a mesma máquina. Portas, banco de dados, CPU e memória precisam de cuidado próprio; worktree não é uma sandbox de segurança.</p>
+</div>
+<div class="callout">A separação permite editar em paralelo. Contratos claros e uma etapa de integração permitem juntar o resultado.</div>
+<div class="footer"><span>BuscaGames · Orquestrando agentes</span><span>23 / 44</span>
+</div>
+</div>
+<aside class="notes-src">Fonte: https://git-scm.com/docs/git-worktree . Por padrão, o Git impede que a mesma branch seja aberta em dois worktrees. Remover o diretório com git worktree remove não apaga a branch.</aside>
 </section>
 
 <section class="slide" data-title="Worktrees aplicados a agentes">
@@ -441,8 +739,9 @@ and contract compatibility.</pre>
         <p>O frontmatter pode pedir o mesmo isolamento para um subagente.</p>
       </div>
     </div>
-    <div class="callout">Worktree resolve conflito de arquivo. Subagentes, agent teams e revisão humana resolvem coordenação.</div>
-    <div class="footer"><span>Worktrees + agentes</span><span>15 / 33</span></div>
+    <div class="callout">Worktree evita que duas sessões editem o mesmo checkout. Contratos e revisão continuam necessários para integrar as branches.</div>
+    <div class="footer"><span>Worktrees + agentes</span><span>24 / 44</span>
+</div>
   </div>
   <aside class="notes-src">Aplicado aos agentes, o worktree resolve isolamento de arquivo. Cada sessão edita uma branch e um diretório diferentes. O mecanismo de coordenação continua separado: subagentes, agent teams ou o orquestrador humano decidem quem faz o quê.</aside>
 </section>
@@ -454,15 +753,20 @@ and contract compatibility.</pre>
     <div class="grid2">
       <div>
         <div class="stack">
-          <div class="bar hot">arquivos versionados <span>✓</span></div>
-          <div class="bar">.env <span>ignorado</span></div>
-          <div class="bar">node_modules / venv <span>ignorado</span></div>
-          <div class="bar">artefatos locais <span>ignorado</span></div>
+          <div class="bar hot">arquivos versionados <span>✓</span>
+</div>
+          <div class="bar">.env <span>ignorado</span>
+</div>
+          <div class="bar">node_modules / venv <span>ignorado</span>
+</div>
+          <div class="bar">artefatos locais <span>ignorado</span>
+</div>
         </div>
       </div>
       <div>
         <div class="code" style="margin-top:0">
-          <div class="code-head"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span>.worktreeinclude</span></div>
+          <div class="code-head"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span>.worktreeinclude</span>
+</div>
 <pre><span class="cm"># exemplos do que precisa acompanhar
 # a estratégia depende do repositório</span>
 .env.example
@@ -474,43 +778,78 @@ scripts/bootstrap-worktree.sh</pre>
         </div>
       </div>
     </div>
-    <div class="footer"><span>Git worktree</span><span>16 / 33</span></div>
+    <div class="footer"><span>Git worktree</span><span>25 / 44</span>
+</div>
   </div>
   <aside class="notes-src">O worktree só leva o que está versionado. Arquivos ignorados, dependências instaladas e variáveis locais ficam de fora. Se o agente abre uma worktree sem esse contexto, testes e linters podem falhar por um motivo que não está no código. Eu declaro o que precisa acompanhar ou copio esses arquivos no hook de criação.</aside>
 </section>
 
-<section class="slide" data-title="AGENTS.md: o contrato que todos leem">
-  <div class="content">
-    <div class="eyebrow">Contrato versionado</div>
-    <h2><code>AGENTS.md</code> concentra as regras que precisam sobreviver à sessão</h2>
-    <div class="grid2">
-      <div class="code">
-        <div class="code-head"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span>AGENTS.md</span></div>
-<pre><span class="kw"># Repository rules</span>
+<section class="slide" data-title="Memória compartilhada precisa ser registrada e lida">
+<div class="content">
+<div class="eyebrow">Conceitos · do pedido à execução</div>
+<h2>Memória compartilhada precisa ser registrada e lida</h2>
+<div class="lesson">
+<div class="prose">
+<p>O histórico de uma conversa guarda pedidos e resultados daquela sessão. Outra sessão não recebe automaticamente esse histórico; após compactação, detalhes também podem deixar de estar disponíveis.</p>
+<p>No BuscaGames, registramos regras, contratos de API e decisões em arquivos versionados. Eles funcionam como memória de trabalho entre frentes: um agente registra uma decisão e o outro consulta o documento antes de implementar.</p>
+<p>Em worktrees diferentes, é preciso integrar o commit do documento e ler sua versão atual. Compartilhar o repositório não mantém os arquivos de todas as branches sincronizados.</p>
+</div>
+<figure>
+<img src="assets/presentation/memory.png" alt="Conversas separadas consultam regras e decisões explícitas. O Git transporta a versão que será lida.">
+<figcaption>Conversas separadas consultam regras e decisões explícitas. O Git transporta a versão que será lida.</figcaption>
+</figure>
+</div>
+<div class="footer"><span>BuscaGames · Orquestrando agentes</span><span>26 / 44</span>
+</div>
+</div>
+<aside class="notes-src">Exemplo de memória documental do case. AGENTS.md guarda instruções; ADR registra decisões; contratos descrevem interfaces. Não se trata de memória automática entre modelos. Fonte Git: https://git-scm.com/docs/git-worktree</aside>
+</section>
 
-<span class="kw">## Commands</span>
-- test: <span class="str">pnpm test</span>
-- lint: <span class="str">pnpm lint</span>
-- build: <span class="str">pnpm build</span>
+<section class="slide" data-title="AGENTS.md: instruções que acompanham o projeto">
+<div class="content">
+<div class="eyebrow">Conceitos · do pedido à execução</div>
+<h2>AGENTS.md: instruções que acompanham o projeto</h2>
+<div class="grid2">
+<div class="prose">
+<p><code>AGENTS.md</code> é um arquivo Markdown com orientações para agentes que trabalham no repositório. Ele explica como testar, quais convenções seguir e quais ações exigem consulta ao responsável.</p>
+<p>Escreva regras verificáveis: o comando de teste, os limites dos serviços e a condição para pedir aprovação. Uma regra como “tenha cuidado” não informa o que o agente deve fazer.</p>
+<p>Mantenha as instruções principais curtas e encaminhe detalhes para documentos específicos. Um ADR registra o motivo de uma decisão; AGENTS.md orienta o trabalho seguinte.</p>
+</div>
+<div class="code" style="margin-top:0">
+<div class="code-head">Exemplo didático · adaptar ao repositório</div><pre># Instruções do projeto
 
-<span class="kw">## Production</span>
-- Every service must declare CPU and memory limits.
-- Shared-environment deploys require human approval.
+## Verificação
+Execute os testes antes da entrega.
+Informe o comando e o resultado.
 
-<span class="kw">## Do not touch</span>
-- infra/secrets/
-- production database manually</pre>
-      </div>
-      <div class="bullets" style="margin-top:8px">
-        <div class="bullet">Markdown na raiz, lido por vários harnesses.</div>
-        <div class="bullet">Guarda comandos exatos, restrições e convenções operacionais.</div>
-        <div class="bullet">Foi criado em agosto de 2025 e doado à Agentic AI Foundation em dezembro de 2025.</div>
-        <div class="bullet">Um arquivo gigante perde hierarquia: regra demais faz tudo parecer igualmente importante.</div>
-      </div>
-    </div>
-    <div class="footer"><span>AGENTS.md</span><span>17 / 33</span></div>
-  </div>
-  <aside class="notes-src">AGENTS.md é um contrato em markdown no repositório. Eu coloco comandos exatos, caminhos que não devem ser alterados e convenções da plataforma. A vantagem é simples: diferentes harnesses conseguem ler o mesmo arquivo. Regras muito grandes perdem prioridade, então eu prefiro documentos menores e específicos.</aside>
+## Ambiente compartilhado
+Declare limites de CPU e memória.
+Peça aprovação humana antes do deploy.
+
+## Contratos
+Consulte o contrato da API antes
+de mudar o formato de uma resposta.</pre></div>
+</div>
+<div class="footer"><span>BuscaGames · Orquestrando agentes</span><span>27 / 44</span>
+</div>
+</div>
+<aside class="notes-src">Fonte: https://learn.chatgpt.com/docs/agent-configuration/agents-md . O exemplo não configura permissões técnicas. O histórico de governança consta na apresentação original: criado em agosto de 2025 e doado à AAIF em dezembro de 2025.</aside>
+</section>
+
+<section class="slide" data-title="O arquivo orienta; o harness precisa carregá-lo">
+<div class="content">
+<div class="eyebrow">Conceitos · do pedido à execução</div>
+<h2>O arquivo orienta; o harness precisa carregá-lo</h2>
+<div class="prose" style="margin-top:32px">
+<p>O nome e o alcance dos arquivos de instruções dependem da ferramenta. No Codex, <code>AGENTS.md</code> faz parte desse mecanismo; é preciso observar quais instruções se aplicam ao diretório da tarefa.</p>
+<p>Claude Code usa <code>CLAUDE.md</code>. Para manter regras comuns, esse arquivo pode importar <code>AGENTS.md</code> com <code>@AGENTS.md</code>. A equipe deve conferir o mecanismo de leitura de cada harness, em vez de presumir que todos carregam os mesmos arquivos.</p>
+<p>Uma instrução escrita também não bloqueia uma ferramenta. Se a sessão tem acesso ao terminal e à produção, pedir “não faça deploy” é uma orientação; as permissões técnicas e a aprovação configurada é que restringem a execução.</p>
+</div>
+<div class="callout">Antes de delegar, confira quais regras a sessão recebeu e quais ferramentas ela pode executar.</div>
+<div class="footer"><span>BuscaGames · Orquestrando agentes</span><span>28 / 44</span>
+</div>
+</div>
+<aside class="notes-src">Fontes: https://learn.chatgpt.com/docs/agent-configuration/agents-md ; https://code.claude.com/docs/en/memory</aside>
 </section>
 
 <section class="slide" data-title="ADR: o que é">
@@ -519,7 +858,8 @@ scripts/bootstrap-worktree.sh</pre>
     <h2>ADR registra a decisão e o motivo</h2>
     <div class="grid2">
       <div class="code">
-        <div class="code-head"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span>docs/adr/0042-translation-worker.md</span></div>
+        <div class="code-head"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span>docs/adr/0042-translation-worker.md</span>
+</div>
 <pre><span class="kw"># 0042: Dedicated translation worker</span>
 
 <span class="kw">Status</span>
@@ -541,7 +881,8 @@ Separate resource limits and deployment.</pre>
         <div class="bullet">A ThoughtWorks marcou ADR como "Adopt" no Technology Radar.</div>
       </div>
     </div>
-    <div class="footer"><span>Architecture Decision Records</span><span>18 / 33</span></div>
+    <div class="footer"><span>Architecture Decision Records</span><span>29 / 44</span>
+</div>
   </div>
   <aside class="notes-src">Um ADR registra uma decisão de arquitetura e o motivo dela. O formato que uso tem título, status, contexto, decisão e consequências. Ele fica junto do código e evita depender da memória de uma sessão ou de uma conversa antiga.</aside>
 </section>
@@ -551,9 +892,12 @@ Separate resource limits and deployment.</pre>
     <div class="eyebrow">Memória que sobrevive</div>
     <h2>O ADR vira contexto compartilhado sem exigir conversa entre agentes</h2>
     <div class="flow" style="margin-top:50px">
-      <div class="node">Sessão A</div><div class="arrow">→</div>
-      <div class="node accent-node">ADR versionado</div><div class="arrow">→</div>
-      <div class="node">Sessão B</div><div class="arrow">→</div>
+      <div class="node">Sessão A</div>
+<div class="arrow">→</div>
+      <div class="node accent-node">ADR versionado</div>
+<div class="arrow">→</div>
+      <div class="node">Sessão B</div>
+<div class="arrow">→</div>
       <div class="node">Revisão humana</div>
     </div>
     <div class="bullets">
@@ -561,7 +905,8 @@ Separate resource limits and deployment.</pre>
       <div class="bullet">O arquivo continua útil depois de compactação de contexto e entre ferramentas diferentes.</div>
       <div class="bullet">No meu fluxo, decisão estrutural ou uso de recurso compartilhado gera ADR antes do código.</div>
     </div>
-    <div class="footer"><span>ADRs + agentes</span><span>19 / 33</span></div>
+    <div class="footer"><span>ADRs + agentes</span><span>30 / 44</span>
+</div>
   </div>
   <aside class="notes-src">Em trabalho com agentes, o ADR preserva decisões entre sessões e entre ferramentas. Quando uma decisão muda arquitetura ou consome um recurso compartilhado, eu registro o ADR antes da implementação. Isso dá ao próximo agente o contexto que não cabe mais na janela da sessão anterior.</aside>
 </section>
@@ -573,20 +918,25 @@ Separate resource limits and deployment.</pre>
     <div class="two-col">
       <div>
         <p class="lead" style="margin-top:0">O produto coleta catálogos de lojas, aproxima ofertas do mesmo jogo e expõe a comparação em uma interface única.</p>
-        <div class="logo-row"><span class="tag purple">Postgres</span><span class="tag purple">Redis</span><span class="tag purple">Celery</span><span class="tag purple">Coolify</span><span class="tag">VPS</span></div>
+        <div class="logo-row"><span class="tag purple">Postgres</span><span class="tag purple">Redis</span><span class="tag purple">Celery</span><span class="tag purple">Coolify</span><span class="tag">VPS</span>
+</div>
         <p class="small" style="margin-top:18px"><a href="https://buscagames.com/" target="_blank" rel="noopener">https://buscagames.com/</a></p>
       </div>
       <div class="diagram-shell" style="margin-top:0">
         <div class="arch-row" style="grid-template-columns:1fr 70px 1fr 70px 1fr">
-          <div class="arch-box"><strong>Coleta</strong><small>catálogos e preços</small></div>
+          <div class="arch-box"><strong>Coleta</strong><small>catálogos e preços</small>
+</div>
           <div class="arch-arrow">→</div>
-          <div class="arch-box"><strong>API</strong><small>normalização e consulta</small></div>
+          <div class="arch-box"><strong>API</strong><small>normalização e consulta</small>
+</div>
           <div class="arch-arrow">→</div>
-          <div class="arch-box"><strong>Interface</strong><small>busca e comparação</small></div>
+          <div class="arch-box"><strong>Interface</strong><small>busca e comparação</small>
+</div>
         </div>
       </div>
     </div>
-    <div class="footer"><span>BuscaGames · arquitetura</span><span>20 / 33</span></div>
+    <div class="footer"><span>BuscaGames · arquitetura</span><span>31 / 44</span>
+</div>
   </div>
   <aside class="notes-src">O BuscaGames coleta catálogos de lojas como a Steam e compara preços do mesmo jogo. Eu tinha frentes relativamente independentes para coleta, API e interface, além de Postgres, Redis, Celery e uma VPS gerenciada pelo Coolify. Foi um cenário em que dois harnesses fizeram sentido.</aside>
 </section>
@@ -597,16 +947,25 @@ Separate resource limits and deployment.</pre>
     <h2>Uma worktree por frente e uma pessoa decidindo o que converge</h2>
     <div class="diagram-shell">
       <div class="arch-row" style="grid-template-columns:1fr 70px 1fr 70px 1fr">
-        <div class="arch-box"><strong>Claude Code</strong><small>worktree: ingestão</small></div>
+        <div class="arch-box"><strong>Claude Code</strong><small>worktree: ingestão</small>
+</div>
         <div class="arch-arrow">↘</div>
-        <div class="arch-box" style="border-color:#6548ad;background:rgba(139,92,246,.12)"><strong>Jonathas</strong><small>orquestração humana</small></div>
+        <div class="arch-box" style="border-color:#6548ad;background:rgba(139,92,246,.12)"><strong>Jonathas</strong><small>orquestração humana</small>
+</div>
         <div class="arch-arrow">↙</div>
-        <div class="arch-box"><strong>Codex</strong><small>worktree: API / UI</small></div>
+        <div class="arch-box"><strong>Codex</strong><small>worktree: API / UI</small>
+</div>
       </div>
-      <div class="arch-sub"><div class="arch-box"><strong>subagentes</strong><small>pesquisa, revisão e tarefas especializadas</small></div><div class="arch-box"><strong>contratos</strong><small>AGENTS.md + ADRs</small></div></div>
+      <div class="arch-sub">
+<div class="arch-box"><strong>subagentes</strong><small>pesquisa, revisão e tarefas especializadas</small>
+</div>
+<div class="arch-box"><strong>contratos</strong><small>AGENTS.md + ADRs</small>
+</div>
+</div>
     </div>
     <div class="callout">Eu decidia o que entrava, o que esperava e o que precisava voltar para revisão.</div>
-    <div class="footer"><span>BuscaGames · distribuição</span><span>21 / 33</span></div>
+    <div class="footer"><span>BuscaGames · distribuição</span><span>32 / 44</span>
+</div>
   </div>
   <aside class="notes-src">Eu mantive uma worktree por frente e escolhi o harness de acordo com o tipo de tarefa. Dentro de cada sessão havia subagentes para pesquisa e revisão. Eu continuava responsável por merge, prioridade e decisões que afetavam mais de uma frente.</aside>
 </section>
@@ -616,14 +975,19 @@ Separate resource limits and deployment.</pre>
     <div class="eyebrow">Fluxo</div>
     <h2>Mudanças estruturais começam pelo contrato versionado</h2>
     <div class="flow" style="margin-top:60px">
-      <div class="node">1 · abre worktree</div><div class="arrow">→</div>
-      <div class="node">2 · lê contratos</div><div class="arrow">→</div>
-      <div class="node accent-node">3 · ADR, se estrutural</div><div class="arrow">→</div>
-      <div class="node">4 · implementa</div><div class="arrow">→</div>
+      <div class="node">1 · abre worktree</div>
+<div class="arrow">→</div>
+      <div class="node">2 · lê contratos</div>
+<div class="arrow">→</div>
+      <div class="node accent-node">3 · ADR, se estrutural</div>
+<div class="arrow">→</div>
+      <div class="node">4 · implementa</div>
+<div class="arrow">→</div>
       <div class="node">5 · revisão + merge</div>
     </div>
     <div class="callout">Os agentes não conversavam diretamente. O estado compartilhado ficava no repositório.</div>
-    <div class="footer"><span>BuscaGames · fluxo de trabalho</span><span>22 / 33</span></div>
+    <div class="footer"><span>BuscaGames · fluxo de trabalho</span><span>33 / 44</span>
+</div>
   </div>
   <aside class="notes-src">A tarefa começava na worktree com a leitura do contrato. Mudanças estruturais geravam ADR antes do código. O merge passava por revisão humana. Os agentes não precisavam conversar diretamente porque o estado compartilhado estava no repositório.</aside>
 </section>
@@ -633,11 +997,20 @@ Separate resource limits and deployment.</pre>
     <div class="eyebrow">BuscaGames · 03 set 2026</div>
     <h2>Um agente colocou uma carga nova no worker existente</h2>
     <div class="grid2">
-      <div class="card accent-card"><div class="kicker">Contexto</div><h3>Tradução local</h3><p>As descrições precisavam de português sem refazer o scraping da Steam. A solução usou NLLB-200 sobre CTranslate2.</p></div>
-      <div class="card"><div class="kicker">Decisão operacional</div><h3>Reaproveitar o worker</h3><p>A carga entrou no worker de ingestão que já existia e foi implantada no ambiente compartilhado.</p></div>
+      <div class="card accent-card">
+<div class="kicker">Contexto</div>
+<h3>Tradução local</h3>
+<p>As descrições precisavam de português sem refazer o scraping da Steam. A solução usou NLLB-200 sobre CTranslate2.</p>
+</div>
+      <div class="card">
+<div class="kicker">Decisão operacional</div>
+<h3>Reaproveitar o worker</h3>
+<p>A carga entrou no worker de ingestão que já existia e foi implantada no ambiente compartilhado.</p>
+</div>
     </div>
     <div class="callout">O código funcionava. O problema foi permitir que uma decisão de infraestrutura chegasse à produção sem uma barreira adicional.</div>
-    <div class="footer"><span>BuscaGames · exemplo operacional</span><span>23 / 33</span></div>
+    <div class="footer"><span>BuscaGames · exemplo operacional</span><span>34 / 44</span>
+</div>
   </div>
   <aside class="notes-src">Esse incidente entra só como exemplo. Eu precisava traduzir descrições sem refazer o scraping da Steam, então um agente implementou tradução local com NLLB-200 e CTranslate2. A mudança foi acoplada ao worker existente e chegou ao ambiente compartilhado com autonomia demais.</aside>
 </section>
@@ -647,12 +1020,22 @@ Separate resource limits and deployment.</pre>
     <div class="eyebrow">Blast radius</div>
     <h2>A VPS saturou e o site ficou indisponível</h2>
     <div class="grid3" style="margin-top:42px">
-      <div class="card"><div class="metric" style="font-size:68px">4 vCPU</div><div class="metric-label">host compartilhado pelo site e pelos workers.</div></div>
-      <div class="card"><div class="metric" style="font-size:68px">15 GB</div><div class="metric-label">RAM consumida pelo container no pico observado.</div></div>
-      <div class="card accent-card"><div class="metric" style="font-size:68px">~20 min</div><div class="metric-label">de indisponibilidade do site.</div></div>
+      <div class="card">
+<div class="metric" style="font-size:68px">4 vCPU</div>
+<div class="metric-label">host compartilhado pelo site e pelos workers.</div>
+</div>
+      <div class="card">
+<div class="metric" style="font-size:68px">15 GB</div>
+<div class="metric-label">RAM consumida pelo container no pico observado.</div>
+</div>
+      <div class="card accent-card">
+<div class="metric" style="font-size:68px">~20 min</div>
+<div class="metric-label">de indisponibilidade do site.</div>
+</div>
     </div>
     <p class="lead" style="font-size:23px">Um worker configurado para I/O carregou um modelo pesado em vários processos. Sem limites de recurso, a falha atingiu o host inteiro.</p>
-    <div class="footer"><span>BuscaGames · exemplo operacional</span><span>24 / 33</span></div>
+    <div class="footer"><span>BuscaGames · exemplo operacional</span><span>35 / 44</span>
+</div>
   </div>
   <aside class="notes-src">O efeito apareceu rápido. Um worker preparado para I/O carregou um modelo pesado em vários processos, a VPS saturou e o site ficou indisponível por cerca de vinte minutos. O agente conseguiu executar uma decisão operacional sem uma barreira suficiente antes do deploy.</aside>
 </section>
@@ -662,11 +1045,18 @@ Separate resource limits and deployment.</pre>
     <div class="eyebrow">Conhecimento tácito</div>
     <h2>O agente via o estado do host. A convenção de implantação não estava versionada.</h2>
     <div class="grid2">
-      <div class="card"><div class="kicker">Disponível para o agente</div><p>Coolify, acesso ao servidor e inspeção dos containers com <code>docker ps</code>.</p></div>
-      <div class="card accent-card"><div class="kicker">Ausente do contrato</div><p>Cada serviço deveria subir como uma aplicação isolada no Coolify, com limites e configuração próprios.</p></div>
+      <div class="card">
+<div class="kicker">Disponível para o agente</div>
+<p>Coolify, acesso ao servidor e inspeção dos containers com <code>docker ps</code>.</p>
+</div>
+      <div class="card accent-card">
+<div class="kicker">Ausente do contrato</div>
+<p>Cada serviço deveria subir como uma aplicação isolada no Coolify, com limites e configuração próprios.</p>
+</div>
     </div>
     <p class="quote" style="font-size:42px">Inspecionar um ambiente mostra o que existe. Não revela uma regra que nunca foi escrita.</p>
-    <div class="footer"><span>BuscaGames · convenção operacional</span><span>25 / 33</span></div>
+    <div class="footer"><span>BuscaGames · convenção operacional</span><span>36 / 44</span>
+</div>
   </div>
   <aside class="notes-src">O agente tinha acesso ao servidor, sabia que havia Coolify e inspecionou os containers. O que faltava no repositório era a regra de implantação: cada serviço deveria subir isolado no Coolify. Inspecionar o estado atual não entrega uma convenção que só existe na cabeça de quem opera o ambiente.</aside>
 </section>
@@ -682,7 +1072,8 @@ Separate resource limits and deployment.</pre>
       <div class="risk-item"><b>Permissões</b>Alterar segredos, acessos ou integrações externas com blast radius alto.</div>
     </div>
     <div class="callout">Editar código e operar um ambiente têm riscos diferentes. O harness precisa tratar essas ações de forma diferente.</div>
-    <div class="footer"><span>Autonomia · risco operacional</span><span>26 / 33</span></div>
+    <div class="footer"><span>Autonomia · risco operacional</span><span>37 / 44</span>
+</div>
   </div>
   <aside class="notes-src">O mesmo risco aparece em outros modelos e stacks. Um agente autônomo pode escolher um deploy inadequado, executar uma migration com blast radius alto, consumir recursos compartilhados ou alterar permissões. Ações operacionais precisam de uma política própria de execução e aprovação.</aside>
 </section>
@@ -692,12 +1083,21 @@ Separate resource limits and deployment.</pre>
     <div class="eyebrow">Human in the loop</div>
     <h2>A aprovação depende de reversibilidade e blast radius</h2>
     <div class="approval-table">
-      <div class="head">Ambiente</div><div class="head">Exemplos</div><div class="head">Política</div>
-      <div>Local / efêmero</div><div>Testes, lint, geração de código, containers descartáveis.</div><div class="auto">Autonomia alta</div>
-      <div>Staging compartilhado</div><div>Deploy, migrations reversíveis, mudanças de configuração.</div><div>Autonomia com regras e revisão seletiva</div>
-      <div>Produção</div><div>Deploy, dados, permissões, recursos compartilhados e operações destrutivas.</div><div class="human">Aprovação humana</div>
+      <div class="head">Ambiente</div>
+<div class="head">Exemplos</div>
+<div class="head">Política</div>
+      <div>Local / efêmero</div>
+<div>Testes, lint, geração de código, containers descartáveis.</div>
+<div class="auto">Autonomia alta</div>
+      <div>Staging compartilhado</div>
+<div>Deploy, migrations reversíveis, mudanças de configuração.</div>
+<div>Autonomia com regras e revisão seletiva</div>
+      <div>Produção</div>
+<div>Deploy, dados, permissões, recursos compartilhados e operações destrutivas.</div>
+<div class="human">Aprovação humana</div>
     </div>
-    <div class="footer"><span>Política de execução</span><span>27 / 33</span></div>
+    <div class="footer"><span>Política de execução</span><span>38 / 44</span>
+</div>
   </div>
   <aside class="notes-src">Eu separo autonomia pela reversibilidade e pelo blast radius. Em ambiente local e efêmero, o agente pode agir com mais liberdade. Em staging compartilhado, algumas ações já pedem revisão. Produção, mudanças destrutivas e operações que afetam outros serviços ficam atrás de aprovação humana.</aside>
 </section>
@@ -707,12 +1107,25 @@ Separate resource limits and deployment.</pre>
     <div class="eyebrow">Contratos operacionais</div>
     <h2>O que era conhecimento tácito virou regra versionada</h2>
     <div class="decision-grid">
-      <div class="decision-card accent-card"><h3>Limites de recurso</h3><p>Serviços de produção precisam declarar CPU e memória antes do deploy.</p></div>
-      <div class="decision-card"><h3>Deploy compartilhado</h3><p>Mudanças no ambiente compartilhado exigem aprovação humana.</p></div>
-      <div class="decision-card"><h3>Decisão estrutural</h3><p>Mudanças de arquitetura ou uso de recurso compartilhado geram ADR.</p></div>
-      <div class="decision-card"><h3>Escopo do agente</h3><p>Ferramentas e permissões são liberadas de acordo com a função do subagente.</p></div>
+      <div class="decision-card accent-card">
+<h3>Limites de recurso</h3>
+<p>Serviços de produção precisam declarar CPU e memória antes do deploy.</p>
+</div>
+      <div class="decision-card">
+<h3>Deploy compartilhado</h3>
+<p>Mudanças no ambiente compartilhado exigem aprovação humana.</p>
+</div>
+      <div class="decision-card">
+<h3>Decisão estrutural</h3>
+<p>Mudanças de arquitetura ou uso de recurso compartilhado geram ADR.</p>
+</div>
+      <div class="decision-card">
+<h3>Escopo do agente</h3>
+<p>Ferramentas e permissões são liberadas de acordo com a função do subagente.</p>
+</div>
     </div>
-    <div class="footer"><span>AGENTS.md + ADRs + permissões</span><span>28 / 33</span></div>
+    <div class="footer"><span>AGENTS.md + ADRs + permissões</span><span>39 / 44</span>
+</div>
   </div>
   <aside class="notes-src">Depois do incidente, algumas regras passaram para o repositório. Serviço de produção precisa declarar limites de recurso. Deploy em ambiente compartilhado exige aprovação humana. Decisões que alteram arquitetura ou consomem recurso compartilhado precisam de ADR. Assim a convenção deixa de depender da memória de quem está operando.</aside>
 </section>
@@ -722,12 +1135,25 @@ Separate resource limits and deployment.</pre>
     <div class="eyebrow">Antes da execução</div>
     <h2>Quatro perguntas antes de deixar o agente agir sozinho</h2>
     <div class="decision-grid">
-      <div class="decision-card accent-card"><h3>Qual ambiente?</h3><p>O agente sabe se está em local, staging ou produção?</p></div>
-      <div class="decision-card"><h3>Qual o limite?</h3><p>CPU, memória, conexões e outras cotas estão declaradas?</p></div>
-      <div class="decision-card"><h3>Como reverter?</h3><p>Existe rollback que continua disponível se o próprio host falhar?</p></div>
-      <div class="decision-card"><h3>Precisa de aprovação?</h3><p>A ação é destrutiva, irreversível ou afeta recursos compartilhados?</p></div>
+      <div class="decision-card accent-card">
+<h3>Qual ambiente?</h3>
+<p>O agente sabe se está em local, staging ou produção?</p>
+</div>
+      <div class="decision-card">
+<h3>Qual o limite?</h3>
+<p>CPU, memória, conexões e outras cotas estão declaradas?</p>
+</div>
+      <div class="decision-card">
+<h3>Como reverter?</h3>
+<p>Existe rollback que continua disponível se o próprio host falhar?</p>
+</div>
+      <div class="decision-card">
+<h3>Precisa de aprovação?</h3>
+<p>A ação é destrutiva, irreversível ou afeta recursos compartilhados?</p>
+</div>
     </div>
-    <div class="footer"><span>Checklist operacional</span><span>29 / 33</span></div>
+    <div class="footer"><span>Checklist operacional</span><span>40 / 44</span>
+</div>
   </div>
   <aside class="notes-src">Antes de dar autonomia, eu verifico quatro coisas: o agente sabe qual ambiente está alterando, existe limite de recurso, há rollback fora do mesmo ponto de falha e a ação precisa ou não de aprovação humana. Esse checklist vale para Claude Code, Codex ou qualquer outro harness.</aside>
 </section>
@@ -737,14 +1163,56 @@ Separate resource limits and deployment.</pre>
     <div class="eyebrow">Custo</div>
     <h2>Paralelismo tem custo de tokens, coordenação e operação</h2>
     <div class="grid3">
-      <div class="card"><div class="metric" style="font-size:68px">tokens</div><div class="metric-label">Cada agente replica parte do contexto. Cache reduz preço, mas não zera uso.</div></div>
-      <div class="card"><div class="metric" style="font-size:68px">tempo</div><div class="metric-label">Dois contratos e duas sessões exigem convergência e revisão manual.</div></div>
-      <div class="card accent-card"><div class="metric" style="font-size:68px">risco</div><div class="metric-label">Ações em ambientes compartilhados acrescentam custo operacional que não aparece na fatura do modelo.</div></div>
+      <div class="card">
+<div class="metric" style="font-size:68px">tokens</div>
+<div class="metric-label">Cada agente replica parte do contexto. Cache reduz preço, mas não zera uso.</div>
+</div>
+      <div class="card">
+<div class="metric" style="font-size:68px">tempo</div>
+<div class="metric-label">Dois contratos e duas sessões exigem convergência e revisão manual.</div>
+</div>
+      <div class="card accent-card">
+<div class="metric" style="font-size:68px">risco</div>
+<div class="metric-label">Ações em ambientes compartilhados acrescentam custo operacional que não aparece na fatura do modelo.</div>
+</div>
     </div>
     <p class="lead" style="font-size:22px">Em abril de 2026, o Codex passou a cobrar por token; a entrada em cache custa menos que a entrada normal.</p>
-    <div class="footer"><span>Custo operacional</span><span>30 / 33</span></div>
+    <div class="footer"><span>Custo operacional</span><span>41 / 44</span>
+</div>
   </div>
   <aside class="notes-src">Paralelismo aumenta uso de contexto e exige coordenação. O Codex passou a cobrar por token em abril de 2026, com preço menor para entrada em cache. Além do custo do modelo, existe o tempo de revisar trabalho paralelo e o risco operacional de permitir ações sobre ambientes compartilhados.</aside>
+</section>
+
+<section class="slide" data-title="Como começar amanhã">
+  <div class="content">
+    <div class="eyebrow">Aplicação prática</div>
+    <h2>Comece pelas regras do repositório e aumente a autonomia aos poucos</h2>
+    <div class="grid2" style="margin-top:44px">
+      <div class="card accent-card">
+<div class="kicker">01</div>
+<h3>Escreva o AGENTS.md</h3>
+<p>Inclua comandos, caminhos proibidos e convenções da plataforma.</p>
+</div>
+      <div class="card">
+<div class="kicker">02</div>
+<h3>Crie o primeiro ADR</h3>
+<p>Use quando uma decisão muda arquitetura ou consome recurso compartilhado.</p>
+</div>
+      <div class="card">
+<div class="kicker">03</div>
+<h3>Restrinja subagentes</h3>
+<p>Dê apenas as ferramentas que cada papel precisa.</p>
+</div>
+      <div class="card">
+<div class="kicker">04</div>
+<h3>Segure ações irreversíveis</h3>
+<p>Deploy e mudanças em ambiente compartilhado continuam com aprovação humana.</p>
+</div>
+    </div>
+    <div class="footer"><span>Aplicação prática</span><span>42 / 44</span>
+</div>
+  </div>
+  <aside class="notes-src">Em um repositório novo, eu começo com AGENTS.md e convenções da plataforma. A primeira decisão estrutural vira ADR. Depois restrinjo ferramentas dos subagentes. Deploy e outras ações irreversíveis continuam com aprovação humana. Só considero um segundo harness quando existe um ganho concreto.</aside>
 </section>
 
 <section class="slide" data-title="Playground: vocês são os agentes">
@@ -753,9 +1221,14 @@ Separate resource limits and deployment.</pre>
     <h2>A turma assume papéis separados no mesmo workspace</h2>
     <div class="diagram-shell" style="margin-top:44px">
       <div class="arch-row" style="grid-template-columns:1fr 72px 1fr 72px 1fr">
-        <div class="arch-box"><strong>Agente A</strong><small>escopo próprio</small></div><div class="arch-arrow">×</div>
-        <div class="arch-box" style="border-color:#6548ad;background:rgba(139,92,246,.12)"><strong>Contrato comum</strong><small>workspace compartilhado</small></div><div class="arch-arrow">×</div>
-        <div class="arch-box"><strong>Agente B</strong><small>escopo próprio</small></div>
+        <div class="arch-box"><strong>Agente A</strong><small>escopo próprio</small>
+</div>
+<div class="arch-arrow">×</div>
+        <div class="arch-box" style="border-color:#6548ad;background:rgba(139,92,246,.12)"><strong>Contrato comum</strong><small>workspace compartilhado</small>
+</div>
+<div class="arch-arrow">×</div>
+        <div class="arch-box"><strong>Agente B</strong><small>escopo próprio</small>
+</div>
       </div>
     </div>
     <div class="bullets">
@@ -763,31 +1236,22 @@ Separate resource limits and deployment.</pre>
       <div class="bullet">A comunicação direta fica bloqueada.</div>
       <div class="bullet">A entrega só fecha se as partes obedecerem à mesma convenção.</div>
     </div>
-    <div class="footer"><span>Exercício</span><span>31 / 33</span></div>
+    <div class="footer"><span>Exercício</span><span>43 / 44</span>
+</div>
   </div>
   <aside class="notes-src">No exercício, cada pessoa recebe um papel em um workspace compartilhado. Ela enxerga o próprio escopo e o contrato comum, mas não acompanha o trabalho dos outros. A entrega fecha quando todos interpretam as mesmas regras do repositório.</aside>
 </section>
 
-<section class="slide" data-title="Como começar amanhã">
-  <div class="content">
-    <div class="eyebrow">Aplicação prática</div>
-    <h2>Comece pelas regras do repositório e aumente a autonomia aos poucos</h2>
-    <div class="grid2" style="margin-top:44px">
-      <div class="card accent-card"><div class="kicker">01</div><h3>Escreva o AGENTS.md</h3><p>Inclua comandos, caminhos proibidos e convenções da plataforma.</p></div>
-      <div class="card"><div class="kicker">02</div><h3>Crie o primeiro ADR</h3><p>Use quando uma decisão muda arquitetura ou consome recurso compartilhado.</p></div>
-      <div class="card"><div class="kicker">03</div><h3>Restrinja subagentes</h3><p>Dê apenas as ferramentas que cada papel precisa.</p></div>
-      <div class="card"><div class="kicker">04</div><h3>Segure ações irreversíveis</h3><p>Deploy e mudanças em ambiente compartilhado continuam com aprovação humana.</p></div>
-    </div>
-    <div class="footer"><span>Aplicação prática</span><span>32 / 33</span></div>
-  </div>
-  <aside class="notes-src">Em um repositório novo, eu começo com AGENTS.md e convenções da plataforma. A primeira decisão estrutural vira ADR. Depois restrinjo ferramentas dos subagentes. Deploy e outras ações irreversíveis continuam com aprovação humana. Só considero um segundo harness quando existe um ganho concreto.</aside>
-</section>
+
 
 <section class="slide" data-title="Referências">
   <div class="content">
     <div class="eyebrow">Referências</div>
     <h2>Fontes usadas na apresentação</h2>
     <div class="ref-list">
+      <div class="ref"><b>Ferramentas.</b> <a href="https://cursor.com/docs/agent/overview">Cursor</a>, <a href="https://www.kimi.com/code/docs/en/">Kimi Code</a>, <a href="https://kiro.dev/docs/specs/">Kiro</a> e <a href="https://opencode.ai/docs/">OpenCode</a>.</div>
+      <div class="ref"><b>Coordenação.</b> <a href="https://docs.langchain.com/oss/python/langchain/multi-agent">Padrões multiagente</a> e <a href="https://github.com/langchain-ai/langgraph-swarm-py">swarm com handoffs</a>.</div>
+      <div class="ref"><b>Instruções.</b> <a href="https://code.claude.com/docs/en/skills">Skills</a>, <a href="https://code.claude.com/docs/en/memory">CLAUDE.md e memória</a>, <a href="https://learn.chatgpt.com/docs/agent-configuration/agents-md">AGENTS.md no Codex</a>.</div>
       <div class="ref"><b>Anthropic.</b> Building Effective Agents.</div>
       <div class="ref"><b>Anthropic.</b> How we built our multi-agent research system.</div>
       <div class="ref"><b>Anthropic.</b> Documentação do Claude Code: subagentes, worktrees e agent teams.</div>
@@ -797,9 +1261,11 @@ Separate resource limits and deployment.</pre>
       <div class="ref"><b>Michael Nygard.</b> Documenting Architecture Decisions.</div>
       <div class="ref"><b>ThoughtWorks.</b> Technology Radar: Architecture Decision Records.</div>
     </div>
-    <div class="spacer"></div>
+    <div class="spacer">
+</div>
     <p class="small">Case operacional: buscagames.com · setembro de 2026</p>
-    <div class="footer"><span>Jonathas Andrade</span><span>33 / 33</span></div>
+    <div class="footer"><span>Jonathas Andrade</span><span>44 / 44</span>
+</div>
   </div>
   <aside class="notes-src">Estas são as fontes da parte conceitual e das convenções apresentadas. O exemplo operacional vem do BuscaGames e do post-mortem feito depois da falha de setembro de 2026.</aside>
 </section>
@@ -808,13 +1274,15 @@ Separate resource limits and deployment.</pre>
 
 <div class="controls" aria-label="Controles da apresentação">
   <button id="prev" title="Slide anterior (←)">←</button>
-  <span id="counter">1 / 33</span>
+  <span id="counter">1 / 44</span>
   <button id="next" title="Próximo slide (→ ou espaço)">→</button>
   <button id="notesBtn" title="Notas do apresentador (N)">Notas</button>
   <button id="fsBtn" title="Tela cheia (F)">Tela cheia</button>
 </div>
 
-<div id="notes"><h4>Notas do apresentador</h4><p id="notesText"></p></div>
+<div id="notes"><h4>Notas do apresentador</h4>
+<p id="notesText"></p>
+</div>
 
 <script>
 (() => {
@@ -828,7 +1296,7 @@ Separate resource limits and deployment.</pre>
 
   function fit(){
     const scale = Math.min(window.innerWidth/1600, window.innerHeight/900);
-    stage.style.transform = `scale(${scale})`;
+    stage.style.transform = `translate(-50%, -50%) scale(${scale})`;
   }
 
   function show(i, updateHash=true){

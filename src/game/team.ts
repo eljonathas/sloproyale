@@ -189,6 +189,13 @@ export class Team {
     this.quizzes = this.quizzes.filter((job) => job.open(elapsed));
   }
 
+  /** Fila de perguntas desta pessoa, inclusive de agentes que já voltaram. */
+  pendingQuizzes(playerId: string, elapsed: number): Job[] {
+    return [...this.jobs, ...this.quizzes]
+      .filter((job) => job.askedTo === playerId && job.open(elapsed))
+      .sort((a, b) => a.id - b.id);
+  }
+
   /** A tarefa dona desta pergunta, esteja o agente em campo ou não. */
   quizOf(jobId: unknown): Job | undefined {
     return (

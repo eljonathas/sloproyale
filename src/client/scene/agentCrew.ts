@@ -108,6 +108,11 @@ class Agent {
   dispose(island: Island): void {
     island.remove(this.object, this.marker);
     this.mixer.stopAllAction();
+    this.mixer.uncacheRoot(this.object);
+    // O clone tem esqueletos próprios, mas compartilha malhas e materiais.
+    this.object.traverse((node: any) => {
+      if (node.isSkinnedMesh) node.skeleton.dispose();
+    });
     this.marker.geometry.dispose();
     this.marker.material.dispose();
   }

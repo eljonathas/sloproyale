@@ -291,10 +291,66 @@ test('client: a janela da pergunta não encolhe com o paralelismo',async t=>{
  await c.click('card-builder');await c.click('site-0');await dispensa();
  await c.click('card-builder');await c.click('site-0');await dispensa();
  // Dois Construtores isolados fecham a obra em metade do tempo.
- const janelas=team.jobs.map(j=>j.questionExpiresAt-room.elapsed);
- assert.ok(janelas.every(j=>Math.abs(j-STUDY.windowSeconds)<0.01),`janelas ${janelas} deveriam ser de ${STUDY.windowSeconds}s`);
+ assert.equal(team.jobs[0].questionExpiresAt-room.elapsed,STUDY.windowSeconds);
+ assert.equal(team.jobs[1].questionExpiresAt,null,"a segunda pergunta espera sem consumir seu tempo");
  now+=(STORY.buildSeconds/2)*1000;arena.tick();await c.refresh();
  assert.equal(team.sites[0].built,100,'a obra fechou em metade do tempo');
  assert.equal(team.quizzes.length,2,'as duas perguntas continuam abertas');
- assert.ok(team.quizzes.every(j=>j.questionExpiresAt-room.elapsed>10),'com folga para ler');
+ assert.ok(team.quizzes[0].questionExpiresAt-room.elapsed>10,'a primeira continua com tempo');
+ assert.equal(team.quizzes[1].questionExpiresAt,null,'a segunda mantém os 25 s reservados');
+});
+
+for(const [width,height] of [[1440,900],[390,844],[390,664]])
+test(`client: fila preserva explicação e 25 s por pergunta em ${width}×${height}`,async t=>{
+ const {arena}=await serve(t);let now=Date.now();arena.now=()=>now;
+ const c=await client();await c.create(true);
+ const room=arena.rooms.get(c.state().code),team=room.teams[0];
+ for(let i=0;i<2;i++){await c.click('card-worktree');await c.click('site-0');}
+ team.energy=STORY.maxEnergy;await c.refresh();
+ for(let i=0;i<3;i++){
+  await c.click('card-builder');await c.click('site-0');
+  if(c.draw().some(k=>k.id==='quiz-later'))await c.click('quiz-later');
+ }
+ const jobs=[...team.jobs];
+ globalThis.innerWidth=width;globalThis.innerHeight=height;c.app.viewport.measure();
+ await c.click('quiz-open');
+ const waitNetwork=async()=>{while(c.app.session.busy)await new Promise(resolve=>setImmediate(resolve));};
+ for(let i=0;i<jobs.length;i++){
+  c.draw();await waitNetwork();
+  const job=jobs[i],question=QUESTIONS.find(q=>q.id===job.questionId);
+  assert.equal(job.questionExpiresAt-room.elapsed,25,`pergunta ${i+1} recebe o prazo inteiro`);
+  const options=c.draw().filter(k=>/^quiz-\d$/.test(k.id));
+  assert.equal(options[0].label,`Alternativa 1: ${question.options[0]}`);
+  for(const option of options)assert.ok(option.y+option.h<=c.app.viewport.height,`${option.id} precisa caber na tela`);
+  now+=20000;arena.tick();await c.refresh();
+  const option=i===1?(question.answer+1)%3:question.answer;
+  await c.click('quiz-'+option);
+  for(let frame=0;frame<3;frame++){
+   const shown=c.draw();
+   assert.ok(shown.some(k=>k.id==='quiz-continue'),'a explicação não é apagada pela próxima pergunta');
+   assert.ok(!shown.some(k=>/^quiz-\d$/.test(k.id)),'não mistura as alternativas da próxima com a explicação');
+  }
+  if(i<jobs.length-1){
+   assert.equal(jobs[i+1].questionExpiresAt,null,'a explicação não consome o prazo da próxima');
+   assert.equal(c.draw().find(k=>k.id==='quiz-continue').label,'Próxima pergunta');
+  }
+  await c.click('quiz-continue');
+ }
+ assert.equal(team.score,2*STUDY.bonus);
+ assert.equal(team.quizzes.length,0);
+ assert.ok(c.draw().some(k=>k.id.startsWith('card-')),'o baralho volta depois da última explicação');
+});
+
+test('client: expirar a pergunta avança a fila com um novo prazo',async t=>{
+ const {arena}=await serve(t);let now=Date.now();arena.now=()=>now;
+ const c=await client();await c.create(true);
+ const room=arena.rooms.get(c.state().code),team=room.teams[0];
+ await c.click('card-builder');await c.click('site-0');await c.click('quiz-later');
+ await c.click('card-builder');await c.click('site-1');await c.click('quiz-open');
+ const second=team.jobs[1];
+ now+=26000;arena.tick();await c.refresh();c.draw();
+ while(c.app.session.busy)await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(second.questionExpiresAt-room.elapsed,25);
+ assert.ok(c.draw().some(k=>k.id==='quiz-0'&&!k.disabled));
+ assert.equal(team.score,0,'expirar não dá pontos');
 });

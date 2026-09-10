@@ -12,7 +12,21 @@ export type Align = "left" | "center" | "right";
  * sombras, raios de canto e famílias de fonte.
  */
 export class Painter {
+  private readonly textWidths = new Map<string, number>();
+
   constructor(readonly ctx: CanvasRenderingContext2D) {}
+
+  /** A mesma frase e fonte são medidas muitas vezes entre quadros. */
+  private textWidth(value: string): number {
+    const key = this.ctx.font + "|" + value;
+    const cached = this.textWidths.get(key);
+    if (cached !== undefined) return cached;
+    const width = this.ctx.measureText(value).width;
+    // Nomes, placares e relógios variam; o cache não cresce com a partida.
+    if (this.textWidths.size >= 512) this.textWidths.clear();
+    this.textWidths.set(key, width);
+    return width;
+  }
 
   /** Instante do quadro atual, usado pelas animações que piscam. */
   time = 0;
@@ -134,7 +148,7 @@ export class Painter {
     let printed = 0;
     for (const word of words) {
       const candidate = row ? row + " " + word : word;
-      if (this.ctx.measureText(candidate).width > width && row) {
+      if (this.textWidth(candidate) > width && row) {
         this.text(row, x, y + printed * lineHeight, size, color);
         printed++;
         row = word;
@@ -155,7 +169,7 @@ export class Painter {
     let row = "";
     for (const word of String(value).split(" ")) {
       const candidate = row ? row + " " + word : word;
-      if (this.ctx.measureText(candidate).width > width && row) {
+      if (this.textWidth(candidate) > width && row) {
         if (++lines >= maxLines) return maxLines;
         row = word;
       } else row = candidate;
@@ -165,7 +179,7 @@ export class Painter {
 
   measure(value: string, size: number, weight = 800): number {
     this.ctx.font = `${weight} ${size}px Nunito`;
-    return this.ctx.measureText(value).width;
+    return this.textWidth(value);
   }
 
   line(
@@ -260,7 +274,7 @@ export class Painter {
     width: number | null = null,
   ): void {
     this.ctx.font = "800 12px Nunito";
-    const w = width ?? this.ctx.measureText(label).width + 28;
+    const w = width ?? this.textWidth(label) + 28;
     this.rect(x, y, w, 28, "#0d2035d9", 14, color + "55");
     this.text(label, x + w / 2, y + 14, 12, color, "center", 900);
   }

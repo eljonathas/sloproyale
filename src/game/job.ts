@@ -29,6 +29,7 @@ export interface Answer {
 export class Job {
   conflict = false;
   answered: Answer | null = null;
+  questionStartedAt: number | null = null;
 
   constructor(
     readonly id: number,
@@ -51,16 +52,20 @@ export class Job {
   }
 
   /**
-   * Quando a pergunta fecha. Ela abre com a tarefa, mas tem o próprio relógio:
-   * ler o enunciado não pode depender de quantos Construtores dividem a obra.
+   * Perguntas na fila ainda não têm prazo. Os 25 s começam na vez de cada uma.
    */
-  get questionExpiresAt(): number {
-    return this.startedAt + STUDY.windowSeconds;
+  get questionExpiresAt(): number | null {
+    return this.questionStartedAt === null
+      ? null
+      : this.questionStartedAt + STUDY.windowSeconds;
   }
 
-  /** A pergunta ainda aceita resposta neste instante da partida. */
+  /** A pergunta continua pendente, ativa ou aguardando na fila. */
   open(elapsed: number): boolean {
-    return !this.answered && elapsed < this.questionExpiresAt;
+    return (
+      !this.answered &&
+      (this.questionExpiresAt === null || elapsed < this.questionExpiresAt)
+    );
   }
 
   /** Quanto falta para a tarefa terminar, no relógio da partida. */

@@ -69,11 +69,15 @@ export class CameraRig {
   /** Tudo, inclusive a rocha: é o que a vitrine enquadra. */
   private readonly full = new Extent();
   private measuredAt = -1;
+  private framedAspect = 0;
+  private framedBattle: boolean | null = null;
+  private readonly shift = new THREE.Vector3();
 
   /** Mede o tabuleiro quando novos modelos terminam de carregar. */
   measure(island: any, loaded: number): void {
     if (this.measuredAt === loaded) return;
     this.measuredAt = loaded;
+    this.framedAspect = 0;
     const bob = island.position.y;
     island.position.y = 0;
     island.updateMatrixWorld(true);
@@ -105,8 +109,11 @@ export class CameraRig {
   frame(rect: Viewport, battle: boolean): void {
     const bounds = battle ? this.play : this.full;
     const aspect = rect.w / rect.h;
+    if (aspect === this.framedAspect && battle === this.framedBattle) return;
+    this.framedAspect = aspect;
+    this.framedBattle = battle;
     let half = 18;
-    const shift = new THREE.Vector3();
+    const shift = this.shift.set(0, 0, 0);
     if (bounds.measured) {
       const hc = (bounds.horizontal[0] + bounds.horizontal[1]) / 2;
       const vc = (bounds.vertical[0] + bounds.vertical[1]) / 2;

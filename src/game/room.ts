@@ -258,6 +258,8 @@ export class Room {
       );
 
     team.jobs.push(job);
+    if (team.pendingQuizzes(player.id, this.elapsed)[0] === job)
+      job.questionStartedAt = this.elapsed;
     team.retime(this.elapsed);
   }
 
@@ -343,6 +345,14 @@ export class Room {
     );
   }
 
+  openQuiz(key: string | undefined, jobId: unknown): void {
+    this.assertPlayable();
+    const { player, team } = this.actor(key);
+    const next = team.pendingQuizzes(player.id, this.elapsed)[0];
+    check(next && next.id === jobId, "Aguarde a vez desta pergunta.");
+    next.questionStartedAt ??= this.elapsed;
+  }
+
   answer(
     key: string | undefined,
     jobId: unknown,
@@ -358,6 +368,7 @@ export class Room {
       403,
     );
     check(!job.answered, "Você já respondeu esta pergunta.");
+    check(job.questionExpiresAt !== null, "Aguarde a vez desta pergunta.");
     check(this.elapsed < job.questionExpiresAt, "Essa pergunta expirou.");
     // O agente ainda em campo é o que pode ser acelerado. Depois que ele volta,
     // a pergunta continua valendo pontos, mas não há mais obra para adiantar.

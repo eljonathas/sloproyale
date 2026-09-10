@@ -185,9 +185,9 @@ test('a janela da pergunta não depende de quantos Construtores dividem a obra',
  assert.equal(f.team.quizzes.length,3,'as três perguntas seguem abertas');
  // Todas ainda respondíveis muito depois do fim da obra.
  f.wait(STUDY.windowSeconds-BUILD/3-1);
- for(const id of ids){const j=f.team.quizOf(id);f.answer(id,f.ask(j).answer);}
+ for(const id of ids){const j=f.team.quizOf(id);f.arena.action(f.room,f.players[0].key,"open-quiz",{jobId:id});f.answer(id,f.ask(j).answer);}
  assert.equal(f.team.score,3*STUDY.bonus);
- // E fecham juntas quando a janela vence.
+ // Uma pergunta ativa ainda fecha quando sua própria janela vence.
  const g=fixture();g.play('builder',0);const perdida=g.team.jobs[0].id;
  g.wait(STUDY.windowSeconds-1);
  assert.equal(g.team.quizzes.length,1,'ainda aberta um segundo antes');
@@ -337,4 +337,28 @@ test('errar a pergunta não acumula bônus para a entrega multiplicar',()=>{
  f.answer(job.id,(q.answer+1)%q.options.length);
  assert.equal(site.studyBonus,0);
  assert.equal(f.team.score,0);
+});
+
+test('fila de quiz: cada pessoa tem uma pergunta ativa e cada próxima ganha 25 s',()=>{
+ const f=fixture();
+ f.play('worktree');f.play('worktree');f.team.energy=STORY.maxEnergy;
+ f.play('builder');f.play('builder');f.play('builder',1,f.players[2]);
+ const [first,second,other]=f.team.jobs;
+ assert.equal(first.questionExpiresAt,25);
+ assert.equal(second.questionExpiresAt,null);
+ assert.equal(other.questionExpiresAt,25,'outro jogador tem seu próprio relógio');
+ assert.throws(()=>f.answer(second.id,0),/vez/);
+ assert.throws(()=>f.arena.action(f.room,f.players[0].key,'open-quiz',{jobId:second.id}),/vez/);
+ assert.throws(()=>f.arena.action(f.room,f.players[2].key,'open-quiz',{jobId:second.id}),/vez/);
+ f.wait(26);
+ assert.equal(f.team.quizOf(second.id),second,'a espera sobrevive à obra e à expiração da primeira');
+ f.arena.action(f.room,f.players[0].key,'open-quiz',{jobId:second.id});
+ assert.equal(second.questionExpiresAt,f.room.elapsed+25);
+ const deadline=second.questionExpiresAt;
+ f.wait(10);
+ f.arena.action(f.room,f.players[0].key,'open-quiz',{jobId:second.id});
+ assert.equal(second.questionExpiresAt,deadline,'reabrir não reinicia o prazo');
+ f.wait(14);
+ f.answer(second.id,f.ask(second).answer);
+ assert.equal(f.team.score,STUDY.bonus);
 });

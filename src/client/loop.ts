@@ -26,6 +26,31 @@ export interface Screens {
  * quadro sem um navegador de verdade.
  */
 export class GameLoop {
+  private running = false;
+  private animationFrame: number | null = null;
+  private nextFrameAt = 0;
+
+  private readonly step = (time: number): void => {
+    this.animationFrame = null;
+    if (!this.running || document.hidden) return;
+    // Telas de 120/144 Hz não precisam duplicar todo o trabalho de 2D e 3D.
+    const interval = 1000 / 60;
+    if (time >= this.nextFrameAt - 0.1) {
+      this.nextFrameAt +=
+        Math.max(1, Math.floor((time - this.nextFrameAt) / interval) + 1) * interval;
+      this.frame(time);
+    }
+    this.animationFrame = requestAnimationFrame(this.step);
+  };
+
+  private readonly visibilityChanged = (): void => {
+    if (this.animationFrame !== null) cancelAnimationFrame(this.animationFrame);
+    this.animationFrame = null;
+    this.nextFrameAt = 0;
+    if (this.running && !document.hidden)
+      this.animationFrame = requestAnimationFrame(this.step);
+  };
+
   constructor(
     private readonly app: AgentArena,
     private readonly chrome: Chrome,
@@ -91,10 +116,15 @@ export class GameLoop {
   }
 
   start(): void {
-    const step = (time: number) => {
-      this.frame(time);
-      requestAnimationFrame(step);
-    };
-    requestAnimationFrame(step);
+    if (this.running) return;
+    this.running = true;
+    document.addEventListener("visibilitychange", this.visibilityChanged);
+    this.visibilityChanged();
+  }
+
+  stop(): void {
+    this.running = false;
+    document.removeEventListener("visibilitychange", this.visibilityChanged);
+    this.visibilityChanged();
   }
 }

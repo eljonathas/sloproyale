@@ -31,7 +31,8 @@ export class QuizPanel {
   private reveal: QuestionView | null = null;
   private revealAt = 0;
   private minimized = false;
-  /** Pergunta já recolhida sozinha, para não recolher de novo a cada quadro. */
+  private queued = 0;
+  private sequence = false;
   private collapsed: number | null = null;
 
   constructor(
@@ -44,6 +45,8 @@ export class QuizPanel {
     this.jobId = null;
     this.reveal = null;
     this.minimized = false;
+    this.queued = 0;
+    this.sequence = false;
     this.collapsed = null;
   }
 
@@ -61,18 +64,19 @@ export class QuizPanel {
    * Procura também nas perguntas de agentes que já voltaram: a janela de
    * leitura é da pergunta, e não do trabalho, então ela sobrevive à tarefa.
    */
-  private pending(team: TeamView): JobView | null {
+  private pending(team: TeamView, now: number): JobView[] {
     const me = this.app.session.me;
-    if (!me) return null;
+    if (!me) return [];
     return (
       [...team.jobs, ...team.quizzes]
         .filter(
           (job) =>
             job.question &&
             job.question.askedTo === me &&
-            job.question.chosen === null,
+            job.question.chosen === null &&
+            (job.question.expiresAt === null || job.question.expiresAt > now),
         )
-        .sort((a, b) => a.id - b.id)[0] ?? null
+        .sort((a, b) => a.id - b.id)
     );
   }
 
@@ -100,35 +104,46 @@ export class QuizPanel {
   draw(team: TeamView, now: number): boolean {
     this.drawnFull = false;
     this.callingBack = false;
-    const pending = this.pending(team);
-    if (pending && this.jobId !== pending.id) {
+    const queue = this.pending(team, now);
+    this.queued = queue.length;
+    if (queue.length > 1) this.sequence = true;
+    // A explicação pertence à resposta anterior. Novas chegadas não a apagam.
+    const revealFor = (this.app.state?.study.revealSeconds ?? 9) * 1000;
+    if (this.reveal && this.app.time - this.revealAt < revealFor) {
+      this.drawnFull = true;
+      this.panel(null, team, now);
+      return true;
+    }
+    this.reveal = null;
+    const pending = queue[0] ?? null;
+    if (!pending) {
+      this.jobId = null;
+      this.sequence = false;
+      return false;
+    }
+    if (this.jobId !== pending.id) {
+      if (this.jobId === null) this.minimized = false;
       this.jobId = pending.id;
       this.openedAt = this.app.time;
-      this.reveal = null;
-      this.minimized = false;
       this.collapsed = null;
     }
-    // Enquanto o agente trabalha a pergunta ocupa o baralho, porque responder
-    // cedo acelera a obra. Quando ele volta, ela se recolhe sozinha para a
-    // chamada compacta: continua valendo pontos, sem prender as cartas. Só na
-    // virada — depois disso quem reabre é a pessoa.
+    // Uma sequência permanece aberta mesmo depois que os agentes voltam.
     if (
-      pending &&
+      !this.sequence &&
       this.collapsed !== pending.id &&
       !team.jobs.some((job) => job.id === pending.id)
     ) {
       this.minimized = true;
       this.collapsed = pending.id;
     }
-    const revealFor = (this.app.state?.study.revealSeconds ?? 4.5) * 1000;
-    const revealing =
-      !pending && this.reveal && this.app.time - this.revealAt < revealFor;
-    if (!pending && !revealing) {
-      this.jobId = null;
-      this.reveal = null;
-      return false;
-    }
-    if (pending && this.minimized) {
+    if (
+      !this.minimized &&
+      pending.question!.expiresAt === null &&
+      this.app.canPlay &&
+      !this.app.session.busy
+    )
+      void this.app.session.command("open-quiz", { jobId: pending.id });
+    if (this.minimized) {
       this.callingBack = true;
       this.callback(pending, now);
       return false;
@@ -145,7 +160,7 @@ export class QuizPanel {
   private callback(job: JobView, now: number): void {
     const { painter, controls, viewport } = this.app;
     const mobile = viewport.mobile;
-    const left = Math.max(0, job.question!.expiresAt - now);
+    const left = Math.max(0, (job.question!.expiresAt ?? now + 25) - now);
     const urgent = left <= 4;
     const map = viewport.sceneRect("battle");
     const x = mobile ? 18 : 1144;
@@ -178,7 +193,9 @@ export class QuizPanel {
       mobile ? y + 7 : y + 54,
       mobile ? 112 : w - 40,
       30,
-      `Responder +${this.app.state?.study.bonus ?? 20}`,
+      this.queued > 1
+        ? `Responder (${this.queued})`
+        : `Responder +${this.app.state?.study.bonus ?? 20}`,
       () => {
         this.minimized = false;
         this.openedAt = this.app.time;
@@ -205,7 +222,9 @@ export class QuizPanel {
     const w = mobile ? viewport.width - 36 : 1080;
     const promptSize = mobile ? 14 : 19;
     const promptLine = mobile ? 19 : 25;
-    const headH = mobile ? 56 : 64;
+    const waiting = this.queued - (pending ? 1 : 0);
+    const queueH = waiting > 0 ? 20 : 0;
+    const headH = (mobile ? 56 : 64) + queueH;
     const gap = 6;
 
     // No computador a altura sai do conteúdo medido; no celular ela é o que
@@ -225,7 +244,9 @@ export class QuizPanel {
         )
       : 44;
     const bodyH = headH + promptLines * promptLine + 10 + 3 * optionH + 2 * gap;
-    const y = mobile ? map.y + map.h + 10 : clamp(888 - (bodyH + 16), 604, 700);
+    const y = mobile
+      ? map.y + map.h + 10
+      : clamp(888 - (bodyH + 16), 604 - queueH, 700);
     const h = mobile ? viewport.height - 14 - y : bodyH + 16;
 
     // Entrada: sobe e aparece. O deslocamento entra nas coordenadas, e não numa
@@ -238,7 +259,7 @@ export class QuizPanel {
     painter.alpha = 0.25 + 0.75 * ease;
     painter.panel(x, top, w, h);
 
-    const left = pending ? Math.max(0, pending.question!.expiresAt - now) : 0;
+    const left = pending ? Math.max(0, (pending.question!.expiresAt ?? now + 25) - now) : 0;
     const span = this.app.state?.study.windowSeconds ?? 25;
     const urgent = Boolean(pending) && left <= 4;
     painter.rect(x + 8, top + 8, w - 16, 5, "#0b1c2e", 3);
@@ -266,6 +287,15 @@ export class QuizPanel {
       left,
       urgent,
     );
+
+    if (waiting > 0)
+      painter.text(
+        `${waiting} pergunta${waiting === 1 ? "" : "s"} na fila · 25s para cada uma`,
+        x + pad,
+        top + headH - 12,
+        mobile ? 11 : 13,
+        COLORS.gold,
+      );
 
     if (!explaining)
       this.options(
@@ -428,7 +458,13 @@ export class QuizPanel {
         label,
         () => this.answer(index),
         {
-          disabled: answered || session.busy || !session.connected || grow < 1,
+          disabled:
+            answered ||
+            question.expiresAt === null ||
+            !this.app.canPlay ||
+            session.busy ||
+            !session.connected ||
+            grow < 1,
           mark,
           shake: mark === "wrong" ? shake : 0,
           size: mobile ? 12 : 15,
@@ -502,7 +538,7 @@ export class QuizPanel {
       mobile ? top + h - 46 : top + h - 54,
       mobile ? w - pad * 2 : 136,
       mobile ? 34 : 40,
-      "Continuar",
+      this.queued ? "Próxima pergunta" : "Continuar",
       () => {
         this.reveal = null;
         this.jobId = null;

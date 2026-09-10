@@ -148,6 +148,8 @@ export class Arena {
         return room.deliver(key, body.siteId);
       case "answer":
         return room.answer(key, body.jobId, body.option);
+      case "open-quiz":
+        return room.openQuiz(key, body.jobId);
       case "start":
         room.assertAdmin(key);
         return room.start();

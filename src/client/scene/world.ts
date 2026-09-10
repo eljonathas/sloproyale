@@ -67,7 +67,6 @@ export class World {
       canvas,
       antialias: true,
       alpha: true,
-      powerPreference: "high-performance",
     });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.6));
     this.renderer.shadowMap.enabled = true;
@@ -204,9 +203,10 @@ export class World {
   private resize(width: number, height: number): void {
     const canvas = this.renderer.domElement;
     const ratio = this.renderer.getPixelRatio();
+    // Three.js trunca o buffer: arredondar aqui repetia setSize a cada quadro.
     if (
-      canvas.width !== Math.round(width * ratio) ||
-      canvas.height !== Math.round(height * ratio)
+      canvas.width !== Math.floor(width * ratio) ||
+      canvas.height !== Math.floor(height * ratio)
     )
       this.renderer.setSize(width, height, false);
   }

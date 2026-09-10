@@ -53,9 +53,9 @@ export interface QuestionView {
   /**
    * Quando a pergunta fecha, no relógio da partida. É o relógio dela, e não o
    * da tarefa: um Revisor de 8 s não pode decidir quanto tempo alguém tem para
-   * ler o enunciado.
+   * ler o enunciado. Null enquanto a pergunta aguarda sua vez na fila.
    */
-  readonly expiresAt: number;
+  readonly expiresAt: number | null;
 }
 
 /** Uma tarefa em andamento: um agente em campo. */
@@ -229,6 +229,7 @@ export type ActionName =
   | "play"
   | "deliver"
   | "answer"
+  | "open-quiz"
   | "start"
   | "pause"
   | "finish"
