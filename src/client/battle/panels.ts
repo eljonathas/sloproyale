@@ -1,5 +1,5 @@
 import type { TeamView } from "../../shared/protocol.js";
-import type { AgentArena } from "../app.js";
+import type { AgentArena } from "../arena.js";
 import type { AgentAnchor } from "../scene/world.js";
 import { COLORS } from "../theme.js";
 

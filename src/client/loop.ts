@@ -1,4 +1,4 @@
-import type { AgentArena } from "./app.js";
+import type { AgentArena } from "./arena.js";
 import type { Chrome } from "./chrome.js";
 import type { BattleScreen } from "./screens/battle.js";
 import type { HomeScreen } from "./screens/home.js";

@@ -1,5 +1,5 @@
 import type { CardId, CardView, TeamView } from "../../shared/protocol.js";
-import type { AgentArena, Screen } from "../app.js";
+import type { AgentArena, Screen } from "../arena.js";
 import {
   AgentChips,
   EnergyBar,

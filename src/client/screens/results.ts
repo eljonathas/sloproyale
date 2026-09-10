@@ -1,4 +1,4 @@
-import type { AgentArena, Screen } from "../app.js";
+import type { AgentArena, Screen } from "../arena.js";
 import { COLORS } from "../theme.js";
 
 /** O pódio do fim da partida, com confete e o resumo da guilda. */

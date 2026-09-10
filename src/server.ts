@@ -228,7 +228,9 @@ export class ArenaServer {
     if (!info.isFile()) throw new GameError("Arquivo não encontrado.", 404);
     response.writeHead(200, {
       "Content-Type": MIME[extname(file)] ?? "application/octet-stream",
-      "Cache-Control": "no-cache",
+      // no-store: proxies (Cloudflare) must not keep a stale copy of JS/HTML
+      // after the origin changes — a cached 404 from another host blanked the game.
+      "Cache-Control": "no-store",
       "X-Content-Type-Options": "nosniff",
     });
     response.end(request.method === "HEAD" ? undefined : await readFile(file));

@@ -1,4 +1,4 @@
-import type { AgentArena, Screen } from "../app.js";
+import type { AgentArena, Screen } from "../arena.js";
 import { COLORS, ROLE_CARDS } from "../theme.js";
 
 /** A tela inicial: quem cria a arena, quem entra com código e quem treina. */

@@ -1,4 +1,4 @@
-import type { AgentArena, Fields } from "../app.js";
+import type { AgentArena, Fields } from "../arena.js";
 import { COLORS } from "../theme.js";
 
 /**

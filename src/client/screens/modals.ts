@@ -1,4 +1,4 @@
-import type { AgentArena } from "../app.js";
+import type { AgentArena } from "../arena.js";
 import { COLORS } from "../theme.js";
 import { Stepper, TextField } from "./field.js";
 

@@ -74,7 +74,7 @@ export function installBrowser(base) {
  * ações que uma pessoa faria na tela.
  */
 export async function makeClient() {
-  const { AgentArena } = await import("../dist/client/app.js");
+  const { AgentArena } = await import("../dist/client/arena.js");
   const { Chrome } = await import("../dist/client/chrome.js");
   const { GameLoop } = await import("../dist/client/loop.js");
   const { InputRouter } = await import("../dist/client/input.js");

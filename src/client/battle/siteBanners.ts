@@ -1,5 +1,5 @@
 import type { SiteView, TeamView } from "../../shared/protocol.js";
-import type { AgentArena } from "../app.js";
+import type { AgentArena } from "../arena.js";
 import type { NextMove, Preview } from "../rules.js";
 import { COLORS, clamp } from "../theme.js";
 import type { Rect } from "../viewport.js";

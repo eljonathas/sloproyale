@@ -1,4 +1,4 @@
-import { AgentArena } from "./app.js";
+import { AgentArena } from "./arena.js";
 import { Chrome } from "./chrome.js";
 import { InputRouter } from "./input.js";
 import { GameLoop } from "./loop.js";

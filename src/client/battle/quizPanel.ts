@@ -4,7 +4,7 @@ import type {
   QuestionView,
   TeamView,
 } from "../../shared/protocol.js";
-import type { AgentArena } from "../app.js";
+import type { AgentArena } from "../arena.js";
 import { COLORS, clamp } from "../theme.js";
 
 /** Duração da entrada da janela. Curta o bastante para não atrapalhar. */

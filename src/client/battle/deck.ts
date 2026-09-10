@@ -1,5 +1,5 @@
 import type { CardId, CardView } from "../../shared/protocol.js";
-import type { AgentArena } from "../app.js";
+import type { AgentArena } from "../arena.js";
 import { PlayPreview } from "../rules.js";
 import { COLORS, clamp } from "../theme.js";
 
